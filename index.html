@@ -72,13 +72,6 @@
   }
   .opt:hover{border-color:var(--accent);}
   .opt.selected{border-color:var(--accent); background:#eaf3ef; font-weight:600;}
-  .scale-row{display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap;}
-  .scale-btn{
-    flex:1; min-width:30px; padding:10px 0; text-align:center; border:1px solid var(--line);
-    background:var(--white); cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:13px;
-    border-radius:2px;
-  }
-  .scale-btn.selected{background:var(--accent); color:var(--white); border-color:var(--accent); font-weight:600;}
   .scale-labels{display:flex; justify-content:space-between; font-size:11.5px; color:#5a6a63; margin-bottom:22px;}
   .grid-item{margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--paper2);}
   .grid-item:last-child{border-bottom:none;}
@@ -178,6 +171,45 @@
   .comment-review{background:var(--paper2); border-radius:2px; padding:14px 16px; margin-top:8px; font-size:13.5px; line-height:1.5;}
   .comment-review .cr-var{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--accent-dark); display:block; margin-bottom:2px;}
   .comment-review + .comment-review{margin-top:8px;}
+  .slider-wrap{margin:6px 0 20px;}
+  .slider-value{
+    font-family:'IBM Plex Mono',monospace; font-size:30px; font-weight:500; color:var(--accent-dark);
+    text-align:center; line-height:1.1; margin-bottom:2px;
+  }
+  .slider-value.empty{color:#b7c4bd;}
+  .slider-hint{text-align:center; font-size:11.5px; color:#7a8a82; margin-bottom:12px; min-height:14px;}
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:2px;
+    background:var(--line); outline:none; margin:10px 0 6px; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:26px; height:26px; border-radius:50%;
+    background:var(--accent); border:3px solid var(--white); box-shadow:0 1px 4px rgba(0,0,0,.25); cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:26px; height:26px; border-radius:50%; background:var(--accent);
+    border:3px solid var(--white); box-shadow:0 1px 4px rgba(0,0,0,.25); cursor:pointer;
+  }
+  input[type=range].untouched::-webkit-slider-thumb{background:#b7c4bd;}
+  input[type=range].untouched::-moz-range-thumb{background:#b7c4bd;}
+  .slider-ticks{display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#9aa8a1;}
+  .gridtable-wrap{overflow-x:auto; margin-bottom:22px;}
+  table.gridtable{width:100%; border-collapse:collapse; font-size:13.5px; min-width:520px;}
+  table.gridtable th{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:500; color:#5a6a63;
+    padding:5px 2px; text-align:center; border-bottom:1px solid var(--line);
+  }
+  table.gridtable th.item-h{text-align:left; width:34%; min-width:180px;}
+  table.gridtable td{border-bottom:1px solid var(--paper2); padding:4px 2px; text-align:center;}
+  table.gridtable td.item{text-align:left; padding:10px 10px 10px 0; line-height:1.35; font-size:13.5px;}
+  table.gridtable tr:last-child td{border-bottom:none;}
+  .cell-btn{
+    width:100%; min-width:26px; padding:9px 0; border:1px solid var(--line); background:var(--white);
+    border-radius:2px; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink);
+  }
+  .cell-btn:hover{border-color:var(--accent);}
+  .cell-btn.selected{background:var(--accent); color:var(--white); border-color:var(--accent); font-weight:600;}
+  .gridtable-legend{display:flex; justify-content:space-between; font-size:11.5px; color:#5a6a63; margin:-14px 0 22px;}
 </style>
 </head>
 <body>
@@ -369,11 +401,12 @@ function questionShell(qcode, varTag, title, subtitle){
 
 function renderInfo(q, onNext){
   const card = questionShell(q.code, null, q.title, null);
+  if(q.intro) card.appendChild(el('p',{class:'qintro'}, q.intro));
   if(q.scenario){
     const sc = el('div',{class:'scenario'});
     sc.innerHTML = mdToHtml(q.scenario);
     card.appendChild(sc);
-  } else if(q.intro) card.appendChild(el('p',{class:'qintro'}, q.intro));
+  }
   const next = el('button',{class:'btn btn-primary'}, 'Continuar');
   next.onclick = () => onNext({});
   card.appendChild(navRow(next));
@@ -431,33 +464,48 @@ function renderSingle(q, onNext, prev){
   return card;
 }
 
-function buildScaleRow(min, max){
-  const row = el('div',{class:'scale-row'});
-  const count = max-min+1;
-  if(count > 8){
-    row.style.display = 'grid';
-    row.style.gridTemplateColumns = 'repeat(6, 1fr)';
-    row.style.rowGap = '6px';
+/* Slider per a qualsevol escala numèrica. Mentre no es toca, el valor queda
+   buit: així es pot continuar sense respondre, com a la resta de preguntes. */
+function buildSlider(min, max, initial, onChange){
+  const wrap = el('div',{class:'slider-wrap'});
+  const val = el('div',{class:'slider-value'});
+  const hint = el('div',{class:'slider-hint'});
+  const input = el('input',{type:'range', min:String(min), max:String(max), step:'1'});
+  let selected = initial;
+  function paint(){
+    if(selected == null){
+      val.textContent = '—';
+      val.classList.add('empty');
+      input.classList.add('untouched');
+      hint.textContent = 'Mou el control per respondre';
+      input.value = String(Math.round((min+max)/2));
+    } else {
+      val.textContent = String(selected);
+      val.classList.remove('empty');
+      input.classList.remove('untouched');
+      hint.textContent = '';
+      input.value = String(selected);
+    }
   }
-  return row;
+  const set = v => { selected = v; paint(); onChange(selected); };
+  input.oninput = () => set(parseInt(input.value, 10));
+  input.onkeydown = e => { if(selected == null && (e.key==='ArrowLeft'||e.key==='ArrowRight')) set(parseInt(input.value,10)); };
+  paint();
+  wrap.appendChild(val);
+  wrap.appendChild(hint);
+  wrap.appendChild(input);
+  const ticks = el('div',{class:'slider-ticks'});
+  ticks.appendChild(el('span',{}, String(min)));
+  ticks.appendChild(el('span',{}, String(max)));
+  wrap.appendChild(ticks);
+  return wrap;
 }
 
 function renderScale(q, onNext, prev){
   const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
   const min = q.min ?? 0, max = q.max ?? 10;
   let selected = prev && prev.value != null ? prev.value : null;
-  const row = buildScaleRow(min, max);
-  for(let i=min;i<=max;i++){
-    const b = el('button',{class:'scale-btn'}, String(i));
-    if(selected === i) b.classList.add('selected');
-    b.onclick = () => {
-      [...row.children].forEach(c=>c.classList.remove('selected'));
-      b.classList.add('selected');
-      selected = i;
-    };
-    row.appendChild(b);
-  }
-  card.appendChild(row);
+  card.appendChild(buildSlider(min, max, selected, v => { selected = v; }));
   if(q.minLabel || q.maxLabel){
     card.appendChild(el('div',{class:'scale-labels'},
       el('span',{}, `${min} = ${q.minLabel||''}`),
@@ -476,8 +524,21 @@ function renderNumber(q, onNext, prev){
   if(q.max!=null) input.max = q.max;
   if(prev && prev.value != null) input.value = prev.value;
   card.appendChild(input);
+  /* Es pot deixar en blanc, però si s'hi posa un valor ha de ser del rang. */
+  const err = el('div',{class:'hint', style:'color:var(--danger); margin:-14px 0 16px;'}, '');
+  card.appendChild(err);
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
-  nextBtn.onclick = () => onNext({value: input.value === '' ? null : input.value});
+  nextBtn.onclick = () => {
+    if(input.value === ''){ onNext({value: null}); return; }
+    const n = Number(input.value);
+    if(Number.isNaN(n) || (q.min != null && n < q.min) || (q.max != null && n > q.max)){
+      err.textContent = `Introdueix un valor entre ${q.min} i ${q.max}, o deixa-ho en blanc.`;
+      input.focus();
+      return;
+    }
+    err.textContent = '';
+    onNext({value: input.value});
+  };
   card.appendChild(navRow(nextBtn));
   input.focus();
   return card;
@@ -511,32 +572,54 @@ function renderRank(q, onNext, prev){
   return card;
 }
 
+/* Bateries. Per defecte, graella compacta amb una fila per ítem.
+   Amb layout:'slider', un slider per ítem. */
 function renderGridScale(q, onNext, prev){
   const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
   const min = q.min ?? 0, max = q.max ?? 10;
   const answers = prev && prev.value ? {...prev.value} : {};
-  q.items.forEach(([val,label]) => {
-    const gi = el('div',{class:'grid-item'});
-    gi.appendChild(el('div',{class:'grid-item-label'}, label));
-    const row = buildScaleRow(min, max);
-    for(let i=min;i<=max;i++){
-      const b = el('button',{class:'scale-btn'}, String(i));
-      if(answers[val] === i) b.classList.add('selected');
-      b.onclick = () => {
-        [...row.children].forEach(c=>c.classList.remove('selected'));
-        b.classList.add('selected');
-        answers[val]=i;
-      };
-      row.appendChild(b);
-    }
-    gi.appendChild(row);
+
+  if(q.layout === 'slider'){
+    q.items.forEach(([val,label]) => {
+      const gi = el('div',{class:'grid-item'});
+      gi.appendChild(el('div',{class:'grid-item-label'}, label));
+      gi.appendChild(buildSlider(min, max, answers[val] ?? null, v => { answers[val] = v; }));
+      if(q.minLabel || q.maxLabel){
+        gi.appendChild(el('div',{class:'scale-labels'},
+          el('span',{}, `${min} = ${q.minLabel||''}`),
+          el('span',{}, `${max} = ${q.maxLabel||''}`)));
+      }
+      card.appendChild(gi);
+    });
+  } else {
+    const wrap = el('div',{class:'gridtable-wrap'});
+    const table = el('table',{class:'gridtable'});
+    const head = el('tr',{}, el('th',{class:'item-h'}, ''));
+    for(let i=min;i<=max;i++) head.appendChild(el('th',{}, String(i)));
+    table.appendChild(head);
+    q.items.forEach(([val,label]) => {
+      const tr = el('tr',{}, el('td',{class:'item'}, label));
+      const cells = [];
+      for(let i=min;i<=max;i++){
+        const td = el('td',{});
+        const b = el('button',{class:'cell-btn'}, String(i));
+        if(answers[val] === i) b.classList.add('selected');
+        b.onclick = () => { cells.forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); answers[val]=i; };
+        cells.push(b);
+        td.appendChild(b);
+        tr.appendChild(td);
+      }
+      table.appendChild(tr);
+    });
+    wrap.appendChild(table);
+    card.appendChild(wrap);
     if(q.minLabel || q.maxLabel){
-      gi.appendChild(el('div',{class:'scale-labels'},
+      card.appendChild(el('div',{class:'gridtable-legend'},
         el('span',{}, `${min} = ${q.minLabel||''}`),
         el('span',{}, `${max} = ${q.maxLabel||''}`)));
     }
-    card.appendChild(gi);
-  });
+  }
+
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
   nextBtn.onclick = () => onNext({value: {...answers}});
   card.appendChild(navRow(nextBtn));
@@ -693,15 +776,14 @@ function buildFlow(){
       de la UAB (proteccio.dades@uab.cat).</p>
 
       <p><b>Selecciona una de las siguientes opciones. Si no deseas participar, la encuesta finalizará de
-      inmediato:</b></p>
-      <p class="note">Nota del simulador: en l'instrument real, respondre «No» tanca l'enquesta.
-      Aquí pots continuar igualment per poder cronometrar-la sencera.</p>`,
-    options:[['1','Sí, acepto participar'],['2','No, no acepto participar']]});
+      inmediato:</b></p>`,
+    options:[['1','Sí, acepto participar'],['2','No, no acepto participar']],
+    terminate: a => a['CONSENT'] && a['CONSENT'].value === '2'});
 
   /* ---------- BLOC A ---------- */
   push({block:'A', code:'A1', varTag:'[gender]', type:'single', title:'¿Con qué género te identificas?',
     options:[['1','Hombre'],['2','Mujer'],['3','No binario / Otro']]});
-  push({block:'A', code:'A2', varTag:'[age]', type:'number', title:'¿Cuántos años tienes?', min:18, max:99, placeholder:'18–99'});
+  push({block:'A', code:'A2', varTag:'[age]', type:'number', title:'¿Cuántos años tienes?', min:16, max:99, placeholder:'16–99'});
   push({block:'A', code:'A3', varTag:'[nationality]', type:'single', title:'¿Podrías decirme si tienes...?',
     options:[['1','Nacionalidad española'],['2','Nacionalidad española y otra nacionalidad'],['3','Otra nacionalidad']]});
   push({block:'A', code:'A4', varTag:'[education]', type:'single', title:'¿Cuál es el nivel de estudios más alto que has completado?',
@@ -733,11 +815,11 @@ function buildFlow(){
     minLabel:'Nada preocupado/a', maxLabel:'Muy preocupado/a'});
   push({block:'B', code:'B5', varTag:'[cc_urgency]', type:'scale', title:'¿En qué medida crees que hay que actuar ante el cambio climático de manera urgente?',
     minLabel:'No hace falta actuar', maxLabel:'Hay que actuar de forma inmediata y drástica'});
-  push({block:'B', code:'B6', varTag:'[cc_attr_*]', type:'grid_scale', title:'¿En qué medida crees que el cambio climático ha hecho más frecuentes o intensos estos fenómenos en España?',
+  push({block:'B', code:'B6', varTag:'[cc_attr_*]', type:'grid_scale', layout:'slider', title:'¿En qué medida crees que el cambio climático ha hecho más frecuentes o intensos estos fenómenos en España?',
     minLabel:'No tiene nada que ver', maxLabel:'Es determinante',
     items:[['fires','Los incendios forestales'],['floods','Las inundaciones y las lluvias torrenciales'],['drought','Las sequías'],['heat','Las olas de calor']]});
   push({block:'B', code:'B7', varTag:'[cc_behavior_*]', type:'grid_scale', min:1, max:5, title:'Pensando en tu día a día, ¿en qué medida haces cada una de las cosas siguientes?',
-    minLabel:'1 = Nunca', maxLabel:'5 = Siempre',
+    minLabel:'Nunca', maxLabel:'Siempre',
     items:[['1','Reciclar envases de plástico'],['2','Reducir la energía que consumes en casa'],['3','Tener en cuenta la eficiencia energética de los productos que compras'],
       ['4','Elegir caminar, ir en bici o usar el transporte público en lugar del coche'],['5','Reciclar pilas'],['6','Reducir el consumo de carne por razones medioambientales']]});
   push({block:'B', code:'B8', varTag:'[order_actors_*]', type:'rank', title:'¿Cuáles de los siguientes actores crees que son los más importantes para actuar contra el cambio climático?',
@@ -809,9 +891,12 @@ function buildFlow(){
     4: 'Con esta reforma, los hogares con una **renta neta mensual inferior a 1.560 €** recibirían **automáticamente** un pago anual directo. Esta transferencia **se establecería por ley**, requiriendo **mayoría absoluta en el Parlamento** para modificarla.',
     5: 'Con esta reforma, **todos los hogares** recibirían **automáticamente** un pago anual directo e **igual para todos**. Se **establecería por ley**, requiriendo **mayoría absoluta en el Parlamento** para modificarla.'
   };
-  push({block:'EXP-A', code:'EA-intro', type:'info', title:'Experimento A · Fiscalidad energética',
-    scenario:'Imagina que el Gobierno de España está considerando una reforma importante de la fiscalidad energética con el fin de reducir las emisiones de gases de efecto invernadero. Con esta reforma, los precios de los combustibles fósiles, incluyendo la gasolina, el gas natural y la electricidad no renovable, aumentarían. El Gobierno destinaría parte de los ingresos fiscales adicionales a compensar a los hogares por el aumento de los costes energéticos.'});
-  if(condTextsA[condA]) push({block:'EXP-A', code:`EA-cond${condA}`, type:'info', title:`Condición asignada: ${condA}`, scenario: condTextsA[condA]});
+  /* Escenari compartit i text de la condició assignada, en una sola pantalla i
+     sense revelar quina condició ha tocat. */
+  const sharedA = 'Imagina que el Gobierno de España está considerando una reforma importante de la fiscalidad energética con el fin de reducir las emisiones de gases de efecto invernadero. Con esta reforma, los precios de los combustibles fósiles, incluyendo la gasolina, el gas natural y la electricidad no renovable, **aumentarían**. El Gobierno destinaría parte de los ingresos fiscales adicionales a **compensar a los hogares por el aumento de los costes energéticos**.';
+  push({block:'EXP-A', code:'EA-intro', type:'info',
+    intro:'Por favor, lee con atención el siguiente texto sobre fiscalidad energética y responde a las preguntas que se plantean a continuación.',
+    scenario: sharedA + (condTextsA[condA] ? '\n\n' + condTextsA[condA] : '')});
   push({block:'EXP-A', code:'EA1', varTag:'[reform_support]', type:'single', title:'Pensando en la reforma que acabas de leer, ¿estarías a favor o en contra de que se aplicara?',
     options:[['1','Totalmente a favor'],['2','Más bien a favor'],['3','Más bien en contra'],['4','Totalmente en contra'],['98','No lo sé / No tengo opinión']]});
   push({block:'EXP-A', code:'EA2', varTag:'[reform_confidence]', type:'single', title:'¿Hasta qué punto estás seguro/a de la respuesta que acabas de dar?',
@@ -1135,6 +1220,14 @@ function renderCurrent(){
   const onNext = (result) => {
     recordTiming(here, q, (Date.now()-S.qStartTs)/1000);
     if(q.code) S.answers[q.code] = result;
+    /* Algunes respostes tanquen l'enquesta (p. ex. no acceptar el consentiment). */
+    if(q.terminate && q.terminate(S.answers)){
+      S.terminated = true;
+      idx = FLOW.length;
+      renderCurrent();
+      return;
+    }
+    S.terminated = false;
     idx = here + 1;
     renderCurrent();
   };
@@ -1183,8 +1276,14 @@ function renderEnd(){
   const app = $('#app');
   app.innerHTML='';
   const card = el('div',{class:'card end-screen'});
-  card.appendChild(el('h1',{},'Enquesta completada'));
-  card.appendChild(el('p',{class:'qsubtitle'}, `Has passat per ${timings.length} de ${FLOW.length} pantalles.`));
+  if(S.terminated){
+    card.appendChild(el('h1',{},'Enquesta finalitzada'));
+    card.appendChild(el('p',{class:'qsubtitle'},
+      'Has indicat que no acceptes participar, així que l\'enquesta s\'ha acabat aquí, com passaria a l\'instrument real. Si vols recórrer-la, torna enrere i accepta el consentiment.'));
+  } else {
+    card.appendChild(el('h1',{},'Enquesta completada'));
+    card.appendChild(el('p',{class:'qsubtitle'}, `Has passat per ${timings.length} de ${FLOW.length} pantalles.`));
+  }
 
   const backRow = el('div',{class:'btn-row', style:'justify-content:flex-start; margin-bottom:18px;'});
   const backEnd = el('button',{class:'btn btn-ghost'}, '← Tornar a l\'última pantalla');
@@ -1278,7 +1377,6 @@ function renderStart(){
   s.appendChild(el('h1',{},'ATTCLIMPOLS · Ola 5'));
   s.appendChild(el('p',{},'Simulador de pràctica del qüestionari (v.7, 3 d\'agost de 2026). Recorreràs els blocs A–F i els cinc experiments amb la mateixa lògica de branques i aleatorització que el disseny real.'));
   const meta = el('div',{class:'meta-list'});
-  meta.appendChild(el('div',{},el('b',{},'A5 i A6'),' s\'ometen: s\'autocompleten amb dades de panell i no es mostren a l\'enquestat.'));
   meta.appendChild(el('div',{},el('b',{},'Experiment A'),' — condició assignada a l\'atzar (1 de 5).'));
   meta.appendChild(el('div',{},el('b',{},'Experiment B'),' — condició assignada a l\'atzar (1 de 3); el cartell es mostra com a text descriptiu (sense imatge).'));
   meta.appendChild(el('div',{},el('b',{},'Experiment C'),' — 4 tasques de conjoint amb perfils generats a l\'atzar.'));
