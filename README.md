@@ -11,9 +11,33 @@ Es pot navegar endavant i endarrere lliurement, i cap pregunta obliga a
 respondre: l'objectiu és cronometrar i revisar el recorregut, no recollir
 dades vàlides.
 
+A cada pantalla hi ha una caixa **«Deixar comentari»** per apuntar-hi què no
+s'entén, què caldria canviar o qualsevol observació sobre aquella pregunta.
+
 El cartell-estímul de l'Experiment B **no** s'inclou com a imatge, i no s'hi
 ha d'afegir: l'expedient de la comissió d'ètica es compromet a que aquell
 material no es difongui fora de l'enquesta.
+
+## Com queden les dades al full
+
+Una fila per resposta. Després de les columnes fixes (marques de temps, temps
+total i condicions assignades a cada experiment) hi ha, per a cada pregunta i
+en l'ordre del qüestionari, la columna de la variable i just a la dreta la del
+comentari:
+
+```text
+timestamp_servidor | … | expE_versio | gender | gender_comment | age | age_comment | …
+```
+
+El nom de la columna surt de l'etiqueta de variable de la pregunta. Quan
+l'etiqueta no és un nom net (bateries com `[pol_cc_*]`, o pantalles
+informatives sense variable) es fa servir el codi de pregunta, que sempre és
+únic. Les respostes de bateries i de conjoints es guarden com a JSON dins de
+la seva cel·la.
+
+Les columnes es creen soles la primera vegada que apareix una variable, de
+manera que les preguntes condicionals —que no tothom veu— no descol·loquen
+res.
 
 ## Publicar-lo amb GitHub Pages
 

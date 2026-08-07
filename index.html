@@ -156,6 +156,28 @@
     font-size:12.5px; color:#7a8a82; border-top:1px solid var(--line); padding-top:12px; margin-top:18px;
   }
   .doc a{color:var(--accent-dark);}
+  .commentbox{border-top:1px solid var(--line); margin-top:26px; padding-top:14px;}
+  .commentbox summary{
+    cursor:pointer; font-size:13px; color:var(--accent-dark); font-weight:600;
+    list-style:none; display:flex; align-items:center; gap:7px; user-select:none;
+  }
+  .commentbox summary::-webkit-details-marker{display:none;}
+  .commentbox summary::before{content:'✎'; font-size:14px; color:var(--amber);}
+  .commentbox summary:hover{text-decoration:underline;}
+  .commentbox[open] summary{margin-bottom:10px;}
+  .commentbox textarea{
+    width:100%; min-height:84px; resize:vertical; padding:11px 13px; border:1px solid var(--line);
+    border-radius:2px; font-family:'Inter',sans-serif; font-size:14px; line-height:1.5;
+    background:var(--white); color:var(--ink);
+  }
+  .commentbox textarea:focus{outline:none; border-color:var(--accent);}
+  .commentbox .cvar{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#7a8a82; margin-top:6px;
+  }
+  .commentbox .filled{color:var(--amber); font-weight:600;}
+  .comment-review{background:var(--paper2); border-radius:2px; padding:14px 16px; margin-top:8px; font-size:13.5px; line-height:1.5;}
+  .comment-review .cr-var{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--accent-dark); display:block; margin-bottom:2px;}
+  .comment-review + .comment-review{margin-top:8px;}
 </style>
 </head>
 <body>
@@ -202,6 +224,7 @@ const lc1 = str => str.charAt(0).toLowerCase() + str.slice(1);
 /* ============ STATE ============ */
 const S = {
   answers: {},
+  comments: {},
   assign: {},
   timings: [],
   startTs: null,
@@ -264,6 +287,57 @@ const PARTIES = [
   ['19','Se acabó la fiesta'],['96','Otro partido (especifica)'],['97','Ningún partido'],
   ['98','No lo sé / Prefiero no contestar']
 ];
+
+/* ============ NOMS DE VARIABLE PER A L'EXPORTACIÓ ============ */
+/* De [gender] en surt la columna "gender" i, al costat, "gender_comment".
+   Si l'etiqueta no és un nom net (p. ex. "[pol_cc_*]" o "[a / b / c]"),
+   es fa servir el codi de pregunta, que sempre és únic. */
+function varKeyOf(q){
+  let k = (q.varTag || '').replace(/[\[\]]/g, '').trim();
+  if(k.includes('/')) k = '';
+  k = k.replace(/\*/g, '').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  if(!/^[A-Za-z0-9_]+$/.test(k)) k = '';
+  if(!k) k = q.code || 'x';
+  /* Noms aptes per a qualsevol programa estadístic: només lletres, xifres i _ */
+  return k.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+}
+/* Assigna una columna única a cada pantalla del flux (resol duplicats). */
+function assignVarKeys(flow){
+  const used = {};
+  flow.forEach(q => {
+    let k = varKeyOf(q);
+    if(used[k]) k = `${k}_${q.code}`;
+    while(used[k]) k = `${k}_`;
+    used[k] = true;
+    q.varKey = k;
+  });
+}
+
+/* ============ CAIXA DE COMENTARIS ============ */
+function commentBox(q){
+  const key = q.varKey;
+  const box = el('details',{class:'commentbox'});
+  const sum = el('summary',{}, 'Deixar comentari');
+  const ta = el('textarea',{placeholder:'Què no funciona, què canviaries, què no s\'entén…'});
+  ta.value = S.comments[key] || '';
+  const tag = el('div',{class:'cvar'}, `${key}_comment`);
+  function refresh(){
+    const has = ta.value.trim().length > 0;
+    sum.textContent = has ? 'Comentari desat en aquesta pantalla' : 'Deixar comentari';
+    sum.classList.toggle('filled', has);
+  }
+  ta.oninput = () => {
+    const v = ta.value.trim();
+    if(v) S.comments[key] = ta.value; else delete S.comments[key];
+    refresh();
+  };
+  refresh();
+  if(ta.value) box.setAttribute('open','');
+  box.appendChild(sum);
+  box.appendChild(ta);
+  box.appendChild(tag);
+  return box;
+}
 
 /* ============ NAVEGACIÓ ============ */
 /* Botó "Enrere" disponible a totes les pantalles excepte la primera.
@@ -1078,14 +1152,34 @@ function renderCurrent(){
     case 'conjoint': node = renderConjointTask(q, onNext, prev); break;
     default: node = el('div',{},'?');
   }
+  /* La caixa de comentaris va a totes les pantalles, just abans dels botons. */
+  const navr = node.querySelector ? node.querySelector('.btn-row') : null;
+  if(navr) node.insertBefore(commentBox(q), navr);
+  else node.appendChild(commentBox(q));
   app.appendChild(node);
   window.scrollTo({top:0,behavior:'instant'});
+}
+
+/* Construeix les columnes de sortida en l'ordre del qüestionari:
+   per a cada pantalla, la variable i just a la dreta el seu comentari. */
+function buildFlat(){
+  const flat = {};
+  FLOW.forEach(q => {
+    const k = q.varKey;
+    const a = S.answers[q.code];
+    let v = a ? a.value : null;
+    if(v !== null && typeof v === 'object') v = JSON.stringify(v);
+    flat[k] = v === undefined ? null : v;
+    flat[k + '_comment'] = S.comments[k] || '';
+  });
+  return flat;
 }
 
 function renderEnd(){
   clearInterval(S.clockTimer);
   const totalSec = (Date.now()-S.startTs)/1000;
   const timings = S.timings.filter(Boolean);
+  const flat = buildFlat();
   const app = $('#app');
   app.innerHTML='';
   const card = el('div',{class:'card end-screen'});
@@ -1113,7 +1207,23 @@ function renderEnd(){
   timings.forEach(t=>{
     table.appendChild(el('tr',{}, el('td',{},t.code||'—'), el('td',{},blockName(t.block)), el('td',{},t.seconds.toFixed(1))));
   });
-  card.appendChild(el('div',{class:'grid-item-label', style:'margin-top:22px;'},'Detall per pantalla'));
+  const commentKeys = Object.keys(S.comments).filter(k => (S.comments[k]||'').trim());
+  card.appendChild(el('div',{class:'grid-item-label', style:'margin-top:26px;'},
+    commentKeys.length ? `Comentaris deixats (${commentKeys.length})` : 'Comentaris deixats'));
+  if(commentKeys.length){
+    FLOW.forEach(q => {
+      const c = S.comments[q.varKey];
+      if(!c || !c.trim()) return;
+      const box = el('div',{class:'comment-review'});
+      box.appendChild(el('span',{class:'cr-var'}, `${q.varKey}_comment`));
+      box.appendChild(el('span',{}, c));
+      card.appendChild(box);
+    });
+  } else {
+    card.appendChild(el('div',{class:'hint'}, 'No has deixat cap comentari.'));
+  }
+
+  card.appendChild(el('div',{class:'grid-item-label', style:'margin-top:26px;'},'Detall per pantalla'));
   card.appendChild(table);
 
   const saveRow = el('div',{style:'margin-top:20px; padding:16px 18px; background:var(--paper2); border-radius:2px;'});
@@ -1133,7 +1243,9 @@ function renderEnd(){
           timestampClient: new Date().toISOString(),
           totalSeconds: totalSec,
           assign: S.assign,
+          flat: flat,
           answers: S.answers,
+          comments: S.comments,
           timings: timings
         })
       });
@@ -1183,10 +1295,11 @@ function renderStart(){
 }
 
 function init(started){
-  S.answers = {}; S.assign = {}; S.timings = []; idx = 0;
+  S.answers = {}; S.comments = {}; S.assign = {}; S.timings = []; idx = 0;
   clearInterval(S.clockTimer);
   if(!started){ $('#topbar').style.display='none'; renderStart(); return; }
   FLOW = buildFlow();
+  assignVarKeys(FLOW);
   $('#topbar').style.display='block';
   startClock();
   renderCurrent();
