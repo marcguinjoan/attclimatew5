@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATTCLIMPOLS · Ola 5 · Simulador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1b2a2e;
+    --paper:#eef2ef;
+    --paper2:#e2e9e4;
+    --line:#c7d1c9;
+    --accent:#2f6f62;
+    --accent-dark:#1f4a41;
+    --amber:#b5772f;
+    --white:#fbfcfa;
+    --danger:#a4432f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    min-height:100vh;
+  }
+  .topbar{
+    position:sticky; top:0; z-index:10;
+    background:var(--paper); border-bottom:1px solid var(--line);
+  }
+  .progress-track{height:3px; background:var(--paper2);}
+  .progress-fill{height:3px; background:var(--accent); transition:width .25s ease;}
+  .topbar-inner{
+    max-width:720px; margin:0 auto; padding:10px 20px;
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:#5a6a63;
+  }
+  .topbar-block{ text-transform:uppercase; letter-spacing:.08em; font-weight:500; color:var(--accent-dark);}
+  .wrap{max-width:720px; margin:0 auto; padding:40px 20px 120px;}
+  .card{
+    background:var(--white); border:1px solid var(--line); border-radius:2px;
+    padding:32px 30px; box-shadow:0 1px 0 var(--line);
+  }
+  .qcode{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--amber);
+    text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;
+  }
+  .qtitle{
+    font-family:'Newsreader',serif; font-size:26px; font-weight:500; line-height:1.25;
+    margin:0 0 6px;
+  }
+  .qsubtitle{
+    font-size:14px; color:#4a5a53; margin:0 0 22px; line-height:1.55;
+  }
+  .qintro{font-family:'Newsreader',serif; font-style:italic; font-size:17px; line-height:1.6; color:#26362f; margin:0 0 18px;}
+  .scenario{
+    background:var(--paper2); border-left:3px solid var(--accent); padding:16px 18px;
+    font-size:14.5px; line-height:1.6; margin-bottom:20px; white-space:pre-line;
+  }
+  .var-tag{
+    display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    color:#7a8a82; background:var(--paper2); padding:2px 6px; border-radius:2px; margin-bottom:16px;
+  }
+  .options{display:flex; flex-direction:column; gap:8px; margin-bottom:24px;}
+  .opt{
+    text-align:left; padding:13px 16px; border:1px solid var(--line); background:var(--white);
+    border-radius:2px; cursor:pointer; font-size:15px; color:var(--ink);
+    transition:border-color .15s, background .15s; font-family:'Inter',sans-serif;
+  }
+  .opt:hover{border-color:var(--accent);}
+  .opt.selected{border-color:var(--accent); background:#eaf3ef; font-weight:600;}
+  .scale-row{display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap;}
+  .scale-btn{
+    flex:1; min-width:30px; padding:10px 0; text-align:center; border:1px solid var(--line);
+    background:var(--white); cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:13px;
+    border-radius:2px;
+  }
+  .scale-btn.selected{background:var(--accent); color:var(--white); border-color:var(--accent); font-weight:600;}
+  .scale-labels{display:flex; justify-content:space-between; font-size:11.5px; color:#5a6a63; margin-bottom:22px;}
+  .grid-item{margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--paper2);}
+  .grid-item:last-child{border-bottom:none;}
+  .grid-item-label{font-size:14.5px; margin-bottom:8px; line-height:1.4;}
+  .binary-row{display:flex; gap:8px;}
+  .binary-btn{flex:1; padding:9px 0; text-align:center; border:1px solid var(--line); background:var(--white); cursor:pointer; border-radius:2px; font-size:13.5px;}
+  .binary-btn.selected{background:var(--accent); color:var(--white); border-color:var(--accent); font-weight:600;}
+  .rank-list{display:flex; flex-direction:column; gap:8px; margin-bottom:24px;}
+  .rank-item{
+    display:flex; align-items:center; gap:12px; padding:12px 16px; border:1px solid var(--line);
+    background:var(--white); cursor:pointer; border-radius:2px; font-size:14.5px;
+  }
+  .rank-item.ranked{border-color:var(--accent); background:#eaf3ef;}
+  .rank-badge{
+    width:24px; height:24px; border-radius:50%; background:var(--paper2); color:#5a6a63;
+    display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace;
+    font-size:12px; flex-shrink:0;
+  }
+  .rank-item.ranked .rank-badge{background:var(--accent); color:var(--white);}
+  .hint{font-size:12.5px; color:#7a8a82; margin-bottom:16px;}
+  input[type=number], input[type=text]{
+    width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:2px;
+    font-size:15px; font-family:'Inter',sans-serif; margin-bottom:22px; background:var(--white);
+  }
+  .conjoint-table{width:100%; border-collapse:collapse; margin-bottom:22px; font-size:13.5px;}
+  .conjoint-table th{
+    background:var(--accent-dark); color:var(--white); font-weight:600; padding:10px 12px;
+    text-align:left; font-size:13px;
+  }
+  .conjoint-table td{border-bottom:1px solid var(--paper2); padding:11px 12px; vertical-align:top; line-height:1.4;}
+  .conjoint-table td.attr-label{font-weight:600; color:#4a5a53; width:26%;}
+  .mini-scale{display:flex; gap:2px; margin-top:6px;}
+  .mini-btn{
+    flex:1; padding:6px 0; text-align:center; border:1px solid var(--line); background:var(--white);
+    cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:11px; border-radius:1px;
+  }
+  .mini-btn.selected{background:var(--accent); color:var(--white); border-color:var(--accent);}
+  .rate-block{margin-top:8px;}
+  .rate-label{font-size:13px; font-weight:600; margin-bottom:4px;}
+  .btn-row{display:flex; justify-content:flex-end; gap:10px; margin-top:8px;}
+  .btn{
+    padding:12px 26px; border-radius:2px; border:none; font-size:14.5px; font-weight:600;
+    cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .btn-primary{background:var(--accent); color:var(--white);}
+  .btn-primary:disabled{background:#b7c4bd; cursor:not-allowed;}
+  .btn-ghost{background:transparent; color:#5a6a63; border:1px solid var(--line);}
+  .start-screen{text-align:center; padding:60px 20px;}
+  .start-screen h1{font-family:'Newsreader',serif; font-size:34px; font-weight:500; margin-bottom:14px;}
+  .start-screen p{font-size:15px; color:#4a5a53; max-width:520px; margin:0 auto 10px; line-height:1.6;}
+  .meta-list{
+    text-align:left; max-width:480px; margin:26px auto; font-size:13.5px; color:#4a5a53;
+    background:var(--white); border:1px solid var(--line); padding:18px 22px; border-radius:2px; line-height:1.9;
+  }
+  .meta-list b{color:var(--ink);}
+  .end-screen h1{font-family:'Newsreader',serif; font-size:30px; font-weight:500; margin-bottom:8px;}
+  .stat-row{display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--paper2); font-size:14px;}
+  .stat-row b{font-family:'IBM Plex Mono',monospace; color:var(--accent-dark);}
+  table.timing{width:100%; border-collapse:collapse; font-size:12.5px; margin-top:18px;}
+  table.timing th{text-align:left; padding:6px 8px; border-bottom:2px solid var(--line); color:#5a6a63; font-weight:600;}
+  table.timing td{padding:6px 8px; border-bottom:1px solid var(--paper2); font-family:'IBM Plex Mono',monospace;}
+  .assign-tag{display:inline-block; background:var(--paper2); color:var(--accent-dark); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:3px 8px; border-radius:2px; margin:2px 4px 2px 0;}
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topbar" style="display:none;">
+  <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div class="topbar-inner">
+    <span class="topbar-block" id="blockLabel">—</span>
+    <span id="clock">00:00</span>
+  </div>
+</div>
+
+<div class="wrap" id="app"></div>
+
+<script>
+/* ============ ENVIAMENT DE RESPOSTES (Google Sheets via Apps Script) ============ */
+/* Un cop desplegat l'Apps Script (Code.gs) com a aplicació web, enganxa aquí
+   la URL que acaba en /exec. Mentre estigui buida, el botó de guardar queda
+   desactivat i el simulador funciona igual, sense enviar res enlloc. */
+const APPS_SCRIPT_URL = '';
+
+/* ============ UTIL ============ */
+const $ = sel => document.querySelector(sel);
+const el = (tag, attrs={}, ...children) => {
+  const n = document.createElement(tag);
+  for(const k in attrs){
+    if(k==='class') n.className = attrs[k];
+    else if(k==='html') n.innerHTML = attrs[k];
+    else n.setAttribute(k, attrs[k]);
+  }
+  children.forEach(c => n.appendChild(typeof c==='string' ? document.createTextNode(c) : c));
+  return n;
+};
+const randInt = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
+const pick = arr => arr[randInt(0, arr.length-1)];
+const shuffle = arr => { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=randInt(0,i); [a[i],a[j]]=[a[j],a[i]];} return a; };
+const fmtTime = s => {
+  const m = Math.floor(s/60), sec = Math.floor(s%60);
+  return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+};
+const mdToHtml = str => (str||'').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+const lc1 = str => str.charAt(0).toLowerCase() + str.slice(1);
+
+/* ============ STATE ============ */
+const S = {
+  answers: {},
+  assign: {},
+  timings: [],
+  startTs: null,
+  qStartTs: null,
+  clockTimer: null
+};
+
+/* ============ CONJOINT DATA (Experiment C) ============ */
+const CJ_DOMAINS = {
+  transporte: { prefix:'En el ámbito del transporte', rows:[
+    {text:'se aplicará un impuesto sobre las emisiones a las empresas petroleras y a los fabricantes de vehículos', levels:['30 € por tonelada de CO₂','60 € por tonelada de CO₂','120 € por tonelada de CO₂']},
+    {text:'los fabricantes estarán obligados a que una parte mínima de sus ventas sean vehículos sin emisiones', levels:['el 30% de los vehículos nuevos en 2035','el 60% de los vehículos nuevos en 2035','el 100% de los vehículos nuevos en 2035']},
+    {text:'se cobrará un impuesto por cada kilómetro recorrido en vehículos de combustión', levels:['3 céntimos por km (30 € cada 1.000 km)','6 céntimos por km (60 € cada 1.000 km)','9 céntimos por km (90 € cada 1.000 km)']},
+    {text:'se restringirá la circulación de vehículos en las zonas urbanas', levels:['con zonas de bajas emisiones en ciudades de más de 50.000 habitantes','con un día a la semana sin circulación','con prohibición de vehículos de combustión en los centros urbanos']}
+  ]},
+  alimentacion: { prefix:'En el ámbito de la alimentación', rows:[
+    {text:'se aplicará un impuesto sobre las emisiones a los productores de carne y lácteos', levels:['que encarecerá sus costes de producción un 5%','que encarecerá sus costes de producción un 15%','que encarecerá sus costes de producción un 30%']},
+    {text:'se establecerá un límite legal al número de cabezas de ganado', levels:['con una reducción del 10% de la cabaña ganadera','con una reducción del 25% de la cabaña ganadera','con una reducción del 40% de la cabaña ganadera']},
+    {text:'se aumentará el IVA de la carne, actualmente del 10%', levels:['hasta el 15%','hasta el 21%','hasta el 30%']},
+    {text:'por ley, los bares y restaurantes no podrán servir carne algunos días de la semana', levels:['1 día a la semana','2 días a la semana','3 días a la semana']}
+  ]},
+  energia: { prefix:'En el ámbito de la energía doméstica', rows:[
+    {text:'se aplicará un impuesto sobre las emisiones a las compañías energéticas', levels:['30 € por tonelada de CO₂','60 € por tonelada de CO₂','120 € por tonelada de CO₂']},
+    {text:'las compañías energéticas estarán obligadas a que una parte mínima de la energía que suministran sea renovable', levels:['el 50% en 2035','el 75% en 2035','el 100% en 2035']},
+    {text:'se aumentará el impuesto sobre el gas y los combustibles de calefacción', levels:['un 10%','un 25%','un 50%']},
+    {text:'se obligará a sustituir los sistemas de calefacción que funcionan con combustibles fósiles', levels:['con prohibición de instalar calderas de gas nuevas a partir de 2030','con sustitución obligatoria de todas las calderas de gas en 2035','con obligación de reformar el aislamiento antes de vender o alquilar la vivienda']}
+  ]}
+};
+function randomCjProfile(){
+  const domKey = pick(Object.keys(CJ_DOMAINS));
+  const dom = CJ_DOMAINS[domKey];
+  const row = pick(dom.rows);
+  const level = pick(row.levels);
+  const text = `${dom.prefix}, ${row.text}, <b>${level}</b>.`;
+  return { text };
+}
+
+/* ============ CONJOINT DATA (Experiment D) ============ */
+const RULES_ATTRS = [
+  {name:'Tamaño de Circunscripción', levels:['Circunscripciones pequeñas','Circunscripciones grandes']},
+  {name:'Escaños Mínimos por Territorio', levels:['Sin mínimo garantizado por territorio','Mínimo garantizado por territorio']},
+  {name:'Umbral Electoral', levels:['Umbral del 0%','Umbral del 5%']},
+  {name:'Escaños Adicionales al Ganador', levels:['Sin escaños extra al más votado','Escaños extra al más votado']}
+];
+const CONS_ATTRS = [
+  {name:'Proporcionalidad', levels:['Premio a los partidos grandes','Reparto proporcional a los votos']},
+  {name:'Equilibrio Territorial', levels:['Más peso a las regiones pobladas','Compensación a las regiones menos pobladas']},
+  {name:'Representación de Partidos Pequeños', levels:['Difícil entrada de partidos pequeños','Fácil entrada de partidos pequeños']},
+  {name:'Capacidad para Formar Gobierno', levels:['Necesita pactar para gobernar','Puede gobernar en solitario']},
+  {name:'Personalización de la Política', levels:['Disciplina de partido','Voto según criterio propio']}
+];
+function randomSystem(attrs){ return attrs.map(a => pick(a.levels)); }
+
+/* ============ PARTY LIST ============ */
+const PARTIES = [
+  ['1','PP'],['2','PSOE'],['3','Sumar'],['4','Ciudadanos'],['5','Vox'],['6','Podemos'],
+  ['7','ERC'],['8','Junts per Catalunya'],['9','CUP'],['10','EAJ-PNV'],['11','EH Bildu'],
+  ['12','Coalición Canaria (CCa)'],['13','Nueva Canarias'],['14','UPN'],['15','BNG'],
+  ['16','Compromís'],['17','PRC'],['18','España vaciada (Teruel Existe, Soria ¡Ya!...)'],
+  ['19','Se acabó la fiesta'],['96','Otro partido (especifica)'],['97','Ningún partido'],
+  ['98','No lo sé / Prefiero no contestar']
+];
+
+/* ============ QUESTION RENDERERS ============ */
+function questionShell(qcode, varTag, title, subtitle){
+  const card = el('div',{class:'card'});
+  if(qcode) card.appendChild(el('div',{class:'qcode'}, qcode));
+  if(title) card.appendChild(el('h2',{class:'qtitle'}, title));
+  if(subtitle) card.appendChild(el('p',{class:'qsubtitle'}, subtitle));
+  if(varTag) card.appendChild(el('div',{class:'var-tag'}, varTag));
+  return card;
+}
+
+function renderInfo(q, onNext){
+  const card = questionShell(q.code, null, q.title, null);
+  if(q.scenario){
+    const sc = el('div',{class:'scenario'});
+    sc.innerHTML = mdToHtml(q.scenario);
+    card.appendChild(sc);
+  } else if(q.intro) card.appendChild(el('p',{class:'qintro'}, q.intro));
+  const btnRow = el('div',{class:'btn-row'});
+  const next = el('button',{class:'btn btn-primary'}, 'Continuar');
+  next.onclick = () => onNext({});
+  btnRow.appendChild(next);
+  card.appendChild(btnRow);
+  return card;
+}
+
+function renderSingle(q, onNext){
+  const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
+  if(q.scenario) card.insertBefore(el('div',{class:'scenario'}, q.scenario), card.children[card.children.length-0]);
+  let selected = null;
+  const opts = el('div',{class:'options'});
+  q.options.forEach(([val,label]) => {
+    const b = el('button',{class:'opt'}, label);
+    b.onclick = () => {
+      [...opts.children].forEach(c=>c.classList.remove('selected'));
+      b.classList.add('selected');
+      selected = val;
+      nextBtn.disabled = false;
+    };
+    opts.appendChild(b);
+  });
+  card.appendChild(opts);
+  const btnRow = el('div',{class:'btn-row'});
+  const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
+  nextBtn.disabled = true;
+  nextBtn.onclick = () => onNext({value: selected});
+  btnRow.appendChild(nextBtn);
+  card.appendChild(btnRow);
+  return card;
+}
+
+function buildScaleRow(min, max){
+  const row = el('div',{class:'scale-row'});
+  const count = max-min+1;
+  if(count > 8){
+    row.style.display = 'grid';
+    row.style.gridTemplateColumns = 'repeat(6, 1fr)';
+    row.style.rowGap = '6px';
+  }
+  return row;
+}
+
+function renderScale(q, onNext){
+  const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
+  const min = q.min ?? 0, max = q.max ?? 10;
+  let selected = null;
+  const row = buildScaleRow(min, max);
+  for(let i=min;i<=max;i++){
+    const b = el('button',{class:'scale-btn'}, String(i));
+    b.onclick = () => {
+      [...row.children].forEach(c=>c.classList.remove('selected'));
+      b.classList.add('selected');
+      selected = i;
+      nextBtn.disabled = false;
+    };
+    row.appendChild(b);
+  }
+  card.appendChild(row);
+  if(q.minLabel || q.maxLabel){
+    card.appendChild(el('div',{class:'scale-labels'},
+      el('span',{}, `${min} = ${q.minLabel||''}`),
+      el('span',{}, `${max} = ${q.maxLabel||''}`)));
+  }
+  const btnRow = el('div',{class:'btn-row'});
+  const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
+  nextBtn.disabled = true;
+  nextBtn.onclick = () => onNext({value: selected});
+  btnRow.appendChild(nextBtn);
+  card.appendChild(btnRow);
+  return card;
+}
+
+function renderNumber(q, onNext){
+  const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
+  const input = el('input',{type:'number', placeholder:q.placeholder||''});
+  if(q.min!=null) input.min = q.min;
+  if(q.max!=null) input.max = q.max;
+  card.appendChild(input);
+  const btnRow = el('div',{class:'btn-row'});
+  const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
+  nextBtn.onclick = () => { if(input.value==='') return; onNext({value: input.value}); };
+  btnRow.appendChild(nextBtn);
+  card.appendChild(btnRow);
+  input.focus();
+  return card;
+}
+
+function renderRank(q, onNext){
+  const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
+  card.appendChild(el('div',{class:'hint'}, `Haz clic en los ítems por orden, del más importante al menos importante (1–${q.items.length}).`));
+  const list = el('div',{class:'rank-list'});
+  const order = {};
+  let counter = 0;
+  q.items.forEach(([val,label]) => {
+    const badge = el('span',{class:'rank-badge'}, '');
+    const item = el('div',{class:'rank-item'}, badge, el('span',{}, label));
+    item.onclick = () => {
+      if(order[val]){ return; }
+      counter++;
+      order[val]=counter;
+      badge.textContent = counter;
+      item.classList.add('ranked');
+      if(counter===q.items.length) nextBtn.disabled = false;
+    };
+    list.appendChild(item);
+  });
+  card.appendChild(list);
+  const btnRow = el('div',{class:'btn-row'});
+  const resetBtn = el('button',{class:'btn btn-ghost'}, 'Reiniciar orden');
+  resetBtn.onclick = () => { Object.keys(order).forEach(k=>delete order[k]); counter=0; [...list.children].forEach(it=>{it.classList.remove('ranked'); it.querySelector('.rank-badge').textContent='';}); nextBtn.disabled = true; };
+  const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
+  nextBtn.disabled = true;
+  nextBtn.onclick = () => onNext({value: {...order}});
+  btnRow.appendChild(resetBtn);
+  btnRow.appendChild(nextBtn);
+  card.appendChild(btnRow);
+  return card;
+}
+
+function renderGridScale(q, onNext){
+  const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
+  const min = q.min ?? 0, max = q.max ?? 10;
+  const answers = {};
+  q.items.forEach(([val,label]) => {
+    const gi = el('div',{class:'grid-item'});
+    gi.appendChild(el('div',{class:'grid-item-label'}, label));
+    const row = buildScaleRow(min, max);
+    for(let i=min;i<=max;i++){
+      const b = el('button',{class:'scale-btn'}, String(i));
+      b.onclick = () => {
+        [...row.children].forEach(c=>c.classList.remove('selected'));
+        b.classList.add('selected');
+        answers[val]=i;
+        nextBtn.disabled = Object.keys(answers).length < q.items.length;
+      };
+      row.appendChild(b);
+    }
+    gi.appendChild(row);
+    if(q.minLabel || q.maxLabel){
+      gi.appendChild(el('div',{class:'scale-labels'},
+        el('span',{}, `${min} = ${q.minLabel||''}`),
+        el('span',{}, `${max} = ${q.maxLabel||''}`)));
+    }
+    card.appendChild(gi);
+  });
+  const btnRow = el('div',{class:'btn-row'});
+  const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
+  nextBtn.disabled = true;
+  nextBtn.onclick = () => onNext({value: {...answers}});
+  btnRow.appendChild(nextBtn);
+  card.appendChild(btnRow);
+  return card;
+}
+
+function renderGridBinary(q, onNext){
+  const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
+  const answers = {};
+  q.items.forEach(([val,label]) => {
+    const gi = el('div',{class:'grid-item'});
+    gi.appendChild(el('div',{class:'grid-item-label'}, label));
+    const row = el('div',{class:'binary-row'});
+    ['Sí','No'].forEach(opt => {
+      const b = el('button',{class:'binary-btn'}, opt);
+      b.onclick = () => {
+        [...row.children].forEach(c=>c.classList.remove('selected'));
+        b.classList.add('selected');
+        answers[val]=opt;
+        nextBtn.disabled = Object.keys(answers).length < q.items.length;
+      };
+      row.appendChild(b);
+    });
+    gi.appendChild(row);
+    card.appendChild(gi);
+  });
+  const btnRow = el('div',{class:'btn-row'});
+  const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
+  nextBtn.disabled = true;
+  nextBtn.onclick = () => onNext({value: {...answers}});
+  btnRow.appendChild(nextBtn);
+  card.appendChild(btnRow);
+  return card;
+}
+
+function renderConjointTask(q, onNext){
+  const card = questionShell(q.code, q.varTag, q.title, `Tarea ${q.taskNum} de ${q.taskTotal}`);
+  if(q.singleText){
+    const boxA = el('div',{class:'scenario'});
+    boxA.innerHTML = `<b style="color:var(--accent-dark); font-size:12px; text-transform:uppercase; letter-spacing:.06em;">${q.optionALabel||'Medida A'}</b><br>` + mdToHtml(q.textA);
+    const boxB = el('div',{class:'scenario', style:'margin-top:10px;'});
+    boxB.innerHTML = `<b style="color:var(--accent-dark); font-size:12px; text-transform:uppercase; letter-spacing:.06em;">${q.optionBLabel||'Medida B'}</b><br>` + mdToHtml(q.textB);
+    card.appendChild(boxA);
+    card.appendChild(boxB);
+  } else {
+    const table = el('table',{class:'conjoint-table'});
+    const thead = el('tr',{}, el('th',{},'Atributo'), el('th',{},'Medida A'), el('th',{},'Medida B'));
+    table.appendChild(thead);
+    q.rows.forEach(r => {
+      table.appendChild(el('tr',{}, el('td',{class:'attr-label'}, r.label), el('td',{}, r.a), el('td',{}, r.b)));
+    });
+    card.appendChild(table);
+  }
+
+  let choice = null;
+  const opts = el('div',{class:'options'});
+  [['A', q.optionALabel||'Medida A'], ['B', q.optionBLabel||'Medida B']].forEach(([val,label]) => {
+    const b = el('button',{class:'opt'}, label);
+    b.onclick = () => { [...opts.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); choice = val; checkReady(); };
+    opts.appendChild(b);
+  });
+  card.appendChild(el('div',{class:'grid-item-label'},'¿Cuál preferirías?'));
+  card.appendChild(opts);
+
+  let rateA = null, rateB = null;
+  const rateBlockA = el('div',{class:'rate-block'});
+  rateBlockA.appendChild(el('div',{class:'rate-label'}, `Valoración ${q.optionALabel||'Medida A'} (0 = totalmente en contra, 10 = totalmente a favor)`));
+  const rowA = el('div',{class:'mini-scale'});
+  rowA.style.display='grid'; rowA.style.gridTemplateColumns='repeat(6, 1fr)'; rowA.style.rowGap='4px';
+  for(let i=0;i<=10;i++){ const b=el('button',{class:'mini-btn'},String(i)); b.onclick=()=>{[...rowA.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); rateA=i; checkReady();}; rowA.appendChild(b);}
+  rateBlockA.appendChild(rowA);
+  const rateBlockB = el('div',{class:'rate-block', style:'margin-top:16px;'});
+  rateBlockB.appendChild(el('div',{class:'rate-label'}, `Valoración ${q.optionBLabel||'Medida B'}`));
+  const rowB = el('div',{class:'mini-scale'});
+  rowB.style.display='grid'; rowB.style.gridTemplateColumns='repeat(6, 1fr)'; rowB.style.rowGap='4px';
+  for(let i=0;i<=10;i++){ const b=el('button',{class:'mini-btn'},String(i)); b.onclick=()=>{[...rowB.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); rateB=i; checkReady();}; rowB.appendChild(b);}
+  rateBlockB.appendChild(rowB);
+  card.appendChild(rateBlockA);
+  card.appendChild(rateBlockB);
+
+  const btnRow = el('div',{class:'btn-row'});
+  const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
+  nextBtn.disabled = true;
+  function checkReady(){ nextBtn.disabled = !(choice!==null && rateA!==null && rateB!==null); }
+  nextBtn.onclick = () => onNext({value:{choice, rateA, rateB}});
+  btnRow.appendChild(nextBtn);
+  card.appendChild(btnRow);
+  return card;
+}
+
+/* ============ FLOW BUILDER ============ */
+function buildFlow(){
+  const F = [];
+  const push = q => F.push(q);
+
+  // assignment (randomized once)
+  S.assign.expA_condition = randInt(1,5);
+  S.assign.expB_condition = randInt(1,3);
+  S.assign.expD_group = pick(['A','B','C','D']);
+  S.assign.expE_version = randInt(1,2);
+
+  /* ---------- BLOC A ---------- */
+  push({block:'A', code:'A1', varTag:'[gender]', type:'single', title:'¿Con qué género te identificas?',
+    options:[['1','Hombre'],['2','Mujer'],['3','No binario / Otro']]});
+  push({block:'A', code:'A2', varTag:'[age]', type:'number', title:'¿Cuántos años tienes?', min:18, max:99, placeholder:'18–99'});
+  push({block:'A', code:'A3', varTag:'[nationality]', type:'single', title:'¿Podrías decirme si tienes...?',
+    options:[['1','Nacionalidad española'],['2','Nacionalidad española y otra nacionalidad'],['3','Otra nacionalidad']]});
+  push({block:'A', code:'A4', varTag:'[education]', type:'single', title:'¿Cuál es el nivel de estudios más alto que has completado?',
+    options:[['1','Sin estudios'],['2','Educación primaria'],['3','Educación secundaria, 1er ciclo (ESO)'],
+      ['4','Educación secundaria, 2º ciclo (Bachillerato o FP de grado medio)'],
+      ['5','Enseñanza superior de ciclo corto (FP superior, diplomatura)'],
+      ['6','Enseñanza superior de ciclo largo (licenciatura, grado)'],['7','Máster'],['8','Doctorado']]});
+  push({block:'A', code:'A7a', varTag:'[risk_20]', type:'single', title:'Imagina que se lanza una moneda al aire. Si sale cara, recibes 100 €. Si sale cruz, no recibes nada.',
+    subtitle:'a) ¿Qué preferirías: recibir 20 € con seguridad, o jugar al lanzamiento de la moneda?',
+    options:[['1','La cantidad segura (20 €)'],['2','El lanzamiento de la moneda']]});
+  push({block:'A', code:'A7b', varTag:'[risk_80]', type:'single', title:'Mismo lanzamiento de moneda.',
+    subtitle:'b) ¿Qué preferirías: recibir 80 € con seguridad, o jugar al lanzamiento de la moneda?',
+    options:[['1','La cantidad segura (80 €)'],['2','El lanzamiento de la moneda']]});
+  push({block:'A', code:'A8a', varTag:'[time_110]', type:'single', title:'a) ¿Qué preferirías: recibir 100 € hoy, o 110 € dentro de dos semanas?',
+    options:[['1','100 € hoy'],['2','110 € dentro de dos semanas']]});
+  push({block:'A', code:'A8b', varTag:'[time_140]', type:'single', title:'b) ¿Qué preferirías: recibir 100 € hoy, o 140 € dentro de dos semanas?',
+    options:[['1','100 € hoy'],['2','140 € dentro de dos semanas']]});
+
+  /* ---------- BLOC B ---------- */
+  push({block:'B', code:'B1', varTag:'[concerns_*_rank]', type:'rank', title:'De las siguientes preocupaciones que existen ahora en España, ¿cuáles crees que son las más importantes?',
+    items:[['cc','El cambio climático'],['eco','El funcionamiento de la economía'],['immi','La inmigración'],['health','La sanidad'],
+      ['corr','La corrupción y el fraude'],['pol','Los políticos y los partidos políticos'],['edu','La educación'],['house','La vivienda']]});
+  push({block:'B', code:'B2', varTag:'[cc_origin]', type:'single', title:'¿Crees que el cambio climático se debe a...?',
+    options:[['1','Únicamente a procesos naturales'],['2','Principalmente a procesos naturales'],['3','Tanto a procesos naturales como a la actividad humana'],
+      ['4','Principalmente a la actividad humana'],['5','Únicamente a la actividad humana'],['96','No creo que el cambio climático esté ocurriendo']]});
+  push({block:'B', code:'B3', varTag:'[affected_0_10]', type:'scale', title:'¿En qué medida consideras que el lugar donde vives está más o menos afectado por el cambio climático que la media de España?',
+    minLabel:'Mucho menos afectado/a', maxLabel:'Mucho más afectado/a'});
+  push({block:'B', code:'B4', varTag:'[cc_worry]', type:'scale', title:'¿En qué medida te preocupa personalmente el cambio climático?',
+    minLabel:'Nada preocupado/a', maxLabel:'Muy preocupado/a'});
+  push({block:'B', code:'B5', varTag:'[cc_urgency]', type:'scale', title:'¿En qué medida crees que hay que actuar ante el cambio climático de manera urgente?',
+    minLabel:'No hace falta actuar', maxLabel:'Hay que actuar de forma inmediata y drástica'});
+  push({block:'B', code:'B6', varTag:'[cc_attr_*]', type:'grid_scale', title:'¿En qué medida crees que el cambio climático ha hecho más frecuentes o intensos estos fenómenos en España?',
+    minLabel:'No tiene nada que ver', maxLabel:'Es determinante',
+    items:[['fires','Los incendios forestales'],['floods','Las inundaciones y las lluvias torrenciales'],['drought','Las sequías'],['heat','Las olas de calor']]});
+  push({block:'B', code:'B7', varTag:'[cc_behavior_*]', type:'grid_scale', min:1, max:5, title:'Pensando en tu día a día, ¿en qué medida haces cada una de las cosas siguientes?',
+    minLabel:'1 = Nunca', maxLabel:'5 = Siempre',
+    items:[['1','Reciclar envases de plástico'],['2','Reducir la energía que consumes en casa'],['3','Tener en cuenta la eficiencia energética de los productos que compras'],
+      ['4','Elegir caminar, ir en bici o usar el transporte público en lugar del coche'],['5','Reciclar pilas'],['6','Reducir el consumo de carne por razones medioambientales']]});
+  push({block:'B', code:'B8', varTag:'[order_actors_*]', type:'rank', title:'¿Cuáles de los siguientes actores crees que son los más importantes para actuar contra el cambio climático?',
+    items:[['1','Cada uno de nosotros, con nuestras acciones cotidianas'],['2','Las pequeñas y medianas empresas'],['3','Las grandes empresas y multinacionales'],
+      ['4','Los gobiernos estatales'],['5','Las instituciones internacionales (UE, ONU, etc.)']]});
+
+  /* ---------- BLOC C ---------- */
+  push({block:'C', code:'C1', varTag:'[ideology_0_10]', type:'scale', title:'¿Dónde te situarías políticamente?', minLabel:'Extrema izquierda', maxLabel:'Extrema derecha'});
+  push({block:'C', code:'C2', varTag:'[tax_services_0_10]', type:'scale', title:'¿Dónde te situarías respecto a impuestos y servicios públicos?', minLabel:'Bajar impuestos y reducir servicios', maxLabel:'Subir impuestos y mejorar servicios'});
+  push({block:'C', code:'C3', varTag:'[eco_env_dilemma]', type:'single', title:'Entre las dos frases siguientes, ¿cuál se acerca más a tu punto de vista?',
+    options:[['1','Hay que priorizar la protección del medioambiente, aunque conlleve menor crecimiento económico y pérdida de empleos'],
+      ['2','Hay que priorizar el crecimiento económico y la creación de empleo, aunque el medioambiente se vea perjudicado']]});
+  push({block:'C', code:'C4a', varTag:'[pol_knowledge_senado]', type:'single', title:'¿Cuál es el número de senadores que se eligen directamente en las elecciones al Senado español?',
+    options:[['1','100'],['2','208'],['3','350'],['4','266'],['98','No lo sé']]});
+  push({block:'C', code:'C4b', varTag:'[pol_knowledge_UE_presidency]', type:'single', title:'¿Qué país ocupa la presidencia del Consejo de la UE durante el primer semestre de 2026?',
+    options:[['1','Chipre'],['2','Dinamarca'],['3','Austria'],['4','Rumanía'],['98','No lo sé']]});
+  push({block:'C', code:'C4c', varTag:'[pol_knowledge_UE_climate]', type:'single', title:'¿Qué institución europea es la principal responsable de proponer la legislación climática en la UE?',
+    options:[['1','Tribunal de Justicia de la UE'],['2','Comisión Europea'],['3','Parlamento Europeo'],['4','Banco Central Europeo'],['98','No lo sé']]});
+  push({block:'C', code:'C5a', varTag:'[cc_knowledge_agriculture]', type:'single', title:'¿Qué porcentaje aproximado de las emisiones mundiales de gases de efecto invernadero proviene del sector agrícola y ganadero?',
+    options:[['1','5%'],['2','15–20%'],['3','35%'],['4','50% o más'],['98','No lo sé']]});
+  push({block:'C', code:'C5b', varTag:'[cc_knowledge_neutral]', type:'single', title:'¿En qué año prevé la Unión Europea alcanzar la neutralidad climática (emisiones netas cero)?',
+    options:[['1','2030'],['2','2040'],['3','2050'],['4','2060'],['98','No lo sé']]});
+  push({block:'C', code:'C5c', varTag:'[cc_knowledge_CO2_sector]', type:'single', title:'¿Qué sector es responsable de la mayor parte de las emisiones de CO₂ en España?',
+    options:[['1','Agricultura'],['2','Transporte'],['3','Industria textil'],['4','Turismo'],['98','No lo sé']]});
+  push({block:'C', code:'C6', varTag:'[trust_*]', type:'grid_scale', title:'¿Cuánta confianza tienes en cada una de las instituciones o actores siguientes?',
+    minLabel:'Ninguna confianza', maxLabel:'Plena confianza',
+    items:[['congreso','El Congreso de los Diputados'],['ccaa','El Parlamento de tu comunidad autónoma'],
+      ['parties','Los partidos políticos'],['government','El gobierno central'],['eu','Las instituciones de la Unión Europea'],
+      ['climate_science','Los científicos e instituciones de investigación sobre el cambio climático']]});
+  push({block:'C', code:'C7', varTag:'[pol_participation_*]', type:'grid_binary', title:'En los últimos 12 meses, ¿has realizado alguna de las siguientes actividades?',
+    items:[['petition','Firmar una petición o recogida de firmas'],['demo','Participar en una manifestación'],
+      ['social','Compartir o comentar contenido político o social en redes sociales'],
+      ['boycott','Boicotear o comprar deliberadamente determinados productos por razones políticas, éticas o medioambientales']]});
+
+  /* ---------- BLOC D ---------- */
+  push({block:'D', code:'D1', varTag:'[pol_cc_*]', type:'grid_scale', title:'¿En qué medida estás de acuerdo con las siguientes políticas climáticas?',
+    minLabel:'Completamente en desacuerdo', maxLabel:'Completamente de acuerdo',
+    items:[['zbe','Creación o ampliación de Zonas de Bajas Emisiones (ZBE) en todas las áreas urbanas'],
+      ['cruise','Limitar el número de cruceros en los puertos españoles'],
+      ['cars_2035','Prohibir la venta de coches de combustión a partir de 2035'],
+      ['irrigation','Congelar o reducir la superficie de regadío intensivo'],
+      ['carbon_tax','Impuesto sobre el carbono'],
+      ['thermals','Cierre de centrales térmicas de carbón y petróleo'],
+      ['pedestrians','Peatonalizar más calles en las zonas urbanas'],
+      ['pollution','Prohibir la entrada de vehículos no autorizados en las ciudades en días de alta contaminación'],
+      ['waste','Sistema de recogida de residuos que penaliza no reciclar'],
+      ['flight_tax','Impuesto progresivo sobre los vuelos de avión']]});
+  push({block:'D', code:'D2', varTag:'[pol_cc_*]', type:'grid_scale', title:'¿En qué medida estás de acuerdo con las siguientes políticas climáticas?',
+    minLabel:'Completamente en desacuerdo', maxLabel:'Completamente de acuerdo',
+    items:[['meat_tax','Aumentar el IVA de la carne para reducir su consumo'],
+      ['fast_fashion','Restricciones legales a la «moda rápida»'],
+      ['renovation','Subvenciones públicas para la rehabilitación energética de viviendas'],
+      ['renewable_mandate','Obligar a que todos los edificios nuevos instalen sistemas de energía renovable'],
+      ['corptax','Aumentar el impuesto de sociedades a las empresas que más contaminan'],
+      ['fossil_subsidies','Eliminar las ayudas públicas y ventajas fiscales a las industrias más contaminantes']]});
+  push({block:'D', code:'D3', varTag:'[cc_fairness_who_pays]', type:'single', title:'¿Quién crees que debe soportar principalmente los costes de la transición energética verde?',
+    options:[['1','Todos los ciudadanos de manera igualitaria (impuestos y precios más altos)'],['2','Las grandes empresas y las industrias contaminantes'],
+      ['3','Los hogares con ingresos altos, más que los de bajos ingresos'],['4','Las generaciones futuras (a través de la deuda pública)'],['98','NS/NC']]});
+  push({block:'D', code:'D4', varTag:'[pol_cc_effectiveness_*]', type:'grid_scale', title:'¿En qué medida crees que las siguientes políticas serían eficaces para reducir las emisiones en España?',
+    minLabel:'Nada eficaz', maxLabel:'Muy eficaz',
+    items:[['carbon_tax','Impuesto sobre el carbono'],['cars_2035','Prohibir la venta de coches de combustión a partir de 2035'],['renovation','Subvenciones para la rehabilitación energética de viviendas']]});
+
+  /* ---------- EXPERIMENTO A ---------- */
+  const condA = S.assign.expA_condition;
+  const condTextsA = {
+    1: null,
+    2: 'Con esta reforma, el Gobierno **ha anunciado su intención** de destinar una parte de los ingresos a compensar a los hogares con una **renta neta mensual inferior a 1.560 €**. Esta ayuda no cubriría el aumento total de la factura energética. Los detalles de cómo y cuándo se proporcionaría **todavía no se han determinado**.',
+    3: 'Con esta reforma, el Gobierno **ha anunciado su intención** de devolver una parte de los ingresos **a todos los hogares** mediante un pago anual **igual para todos**, independientemente de la renta o del consumo energético. Los detalles **todavía no se han determinado**.',
+    4: 'Con esta reforma, los hogares con una **renta neta mensual inferior a 1.560 €** recibirían **automáticamente** un pago anual directo. Esta transferencia **se establecería por ley**, requiriendo **mayoría absoluta en el Parlamento** para modificarla.',
+    5: 'Con esta reforma, **todos los hogares** recibirían **automáticamente** un pago anual directo e **igual para todos**. Se **establecería por ley**, requiriendo **mayoría absoluta en el Parlamento** para modificarla.'
+  };
+  push({block:'EXP-A', code:'EA-intro', type:'info', title:'Experimento A · Fiscalidad energética',
+    scenario:'Imagina que el Gobierno de España está considerando una reforma importante de la fiscalidad energética con el fin de reducir las emisiones de gases de efecto invernadero. Con esta reforma, los precios de los combustibles fósiles, incluyendo la gasolina, el gas natural y la electricidad no renovable, aumentarían. El Gobierno destinaría parte de los ingresos fiscales adicionales a compensar a los hogares por el aumento de los costes energéticos.'});
+  if(condTextsA[condA]) push({block:'EXP-A', code:`EA-cond${condA}`, type:'info', title:`Condición asignada: ${condA}`, scenario: condTextsA[condA]});
+  push({block:'EXP-A', code:'EA1', varTag:'[reform_support]', type:'single', title:'Pensando en la reforma que acabas de leer, ¿estarías a favor o en contra de que se aplicara?',
+    options:[['1','Totalmente a favor'],['2','Más bien a favor'],['3','Más bien en contra'],['4','Totalmente en contra'],['98','No lo sé / No tengo opinión']]});
+  push({block:'EXP-A', code:'EA2', varTag:'[reform_confidence]', type:'single', title:'¿Hasta qué punto estás seguro/a de la respuesta que acabas de dar?',
+    options:[['1','Nada seguro/a'],['2','Poco seguro/a'],['3','Bastante seguro/a'],['4','Muy seguro/a']],
+    skipIf: a => a['EA1'] && a['EA1'].value==='98'});
+  if(condA!==1){
+    push({block:'EXP-A', code:'EA3', varTag:'[perceived_credibility]', type:'single', title:'¿Qué probabilidad crees que hay de que la ayuda económica descrita llegara realmente a los hogares tal y como se ha explicado?',
+      options:[['1','Muy poco probable'],['2','Poco probable'],['3','Ni probable ni improbable'],['4','Bastante probable'],['5','Muy probable']]});
+  }
+  push({block:'EXP-A', code:'EA4', varTag:'[perceived_fairness]', type:'single', title:'¿Hasta qué punto te parece justa esta reforma?',
+    options:[['1','Muy injusta'],['2','Más bien injusta'],['3','Ni justa ni injusta'],['4','Más bien justa'],['5','Muy justa']]});
+  push({block:'EXP-A', code:'EA5', varTag:'[perceived_net_benefit]', type:'single', title:'¿Crees que tú personalmente saldrías ganando o perdiendo económicamente con esta reforma?',
+    options:[['1','Perdería mucho'],['2','Perdería algo'],['3','Ni ganaría ni perdería'],['4','Ganaría algo'],['5','Ganaría mucho']]});
+  if(condA!==1){
+    push({block:'EXP-A', code:'EA6', varTag:'[check_eligibility]', type:'single', title:'Según el texto que acabas de leer, ¿qué hogares recibirían la ayuda económica prevista en esta reforma?',
+      options:[['1','Todos los hogares por igual'],['2','Los hogares con rentas más bajas'],['3','Los hogares que más energía consumen'],['98','No lo sé']]});
+    push({block:'EXP-A', code:'EA7', varTag:'[check_credibility]', type:'single', title:'Según el texto que acabas de leer, ¿cuál de las siguientes frases describe mejor la situación de esta ayuda?',
+      options:[['1','Ya se ha pagado a los hogares'],['2','El Gobierno ha anunciado su intención, pero todavía no ha concretado nada'],['3','Está establecida por ley y se pagaría de forma automática'],['98','No lo sé']]});
+  }
+
+  /* ---------- EXPERIMENTO B ---------- */
+  const condB = S.assign.expB_condition;
+  push({block:'EXP-B', code:'EB1', varTag:'[pol_distrust_*]', type:'grid_scale', min:1, max:7, title:'Indica tu grado de acuerdo con las siguientes afirmaciones:',
+    minLabel:'Totalmente en desacuerdo', maxLabel:'Totalmente de acuerdo',
+    items:[['1','Por norma general, el Gobierno es ineficaz y poco honesto'],['2','Los partidos políticos normalmente ignoran a personas como yo'],['3','La mayoría de los políticos anteponen su propio interés al del país']]});
+  push({block:'EXP-B', code:'EB2', type:'info', title:'Reforesta',
+    scenario:'Reforesta es una organización española sin ánimo de lucro, creada en 1991 y declarada de Utilidad Pública, dedicada a la conservación y recuperación de los bosques y a la lucha contra la desertificación. Su trabajo busca contribuir a la mitigación del cambio climático y a la adaptación de los territorios más afectados por sus efectos, mediante la reforestación, la restauración de ecosistemas y la educación ambiental.'});
+  if(condB!==1){
+    push({block:'EXP-B', code:'EB3', type:'info', title: condB===2 ? 'Cartel · Nudge (sin señal gubernamental)' : 'Cartel · Nudge (con señal gubernamental)',
+      scenario: condB===2
+        ? '[Aquí se muestra el cartel-estímulo **sin** logotipo institucional — imagen no incluida en este simulador; en el instrumento real: media/image2.jpg]'
+        : '[Aquí se muestra el cartel-estímulo **con el logotipo del Gobierno de España** — imagen no incluida en este simulador; en el instrumento real: media/image1.jpg]'});
+  }
+  push({block:'EXP-B', code:'EB4', varTag:'[donation_willingness]', type:'scale', title:'Después de conocer el trabajo de Reforesta, ¿en qué medida estarías dispuesto/a a colaborar económicamente con esta organización?',
+    minLabel:'Nada dispuesto/a', maxLabel:'Totalmente dispuesto/a'});
+  push({block:'EXP-B', code:'EB5', varTag:'[donation_click]', type:'single', title:'Si lo deseas, puedes obtener más información y realizar tu aportación en la web de Reforesta.',
+    subtitle:'(Se registra si la persona clica el enlace o no; no es necesario para continuar.)',
+    options:[['1','Clicar el enlace (se abriría en una ventana nueva)'],['2','No clicar, continuar con la encuesta']]});
+  if(condB!==1){
+    push({block:'EXP-B', code:'EB6', varTag:'[poster_source]', type:'single', title:'¿Quién crees que ha elaborado el cartel que has visto antes?',
+      options:[['1','El Gobierno de España'],['2','El equipo de investigación de la universidad'],['3','Una organización ecologista'],['4','Otra organización'],['98','No lo sé']]});
+  }
+  push({block:'EXP-B', code:'EB7', varTag:'[donation_empirical_exp]', type:'number', min:0, max:100, placeholder:'0–100', title:'De cada 100 personas que participan en esta encuesta, ¿cuántas crees que estarían dispuestas a colaborar económicamente con Reforesta?'});
+  push({block:'EXP-B', code:'EB8', varTag:'[donation_normative_exp]', type:'number', min:0, max:100, placeholder:'0–100', title:'De cada 100 personas que participan en esta encuesta, ¿cuántas crees que piensan que se debería colaborar económicamente con Reforesta?'});
+  push({block:'EXP-B', code:'EB9', varTag:'[donation_personal_norm]', type:'scale', title:'Y tú personalmente, ¿crees que las personas que participan en esta encuesta deberían colaborar económicamente con esta organización?',
+    minLabel:'No deberían en absoluto', maxLabel:'Deberían totalmente'});
+  push({block:'EXP-B', code:'EB10', varTag:'[prior_donation]', type:'single', title:'¿Has colaborado económicamente con alguna organización sin ánimo de lucro en los últimos 12 meses?',
+    options:[['1','Sí'],['2','No'],['98','No lo sé / Prefiero no responder']]});
+
+  /* ---------- EXPERIMENTO C · CONJOINT POLÍTICAS ---------- */
+  push({block:'EXP-C', code:'EC-intro', type:'info', title:'Experimento C · Diseño de políticas climáticas',
+    intro:'A continuación te presentaremos parejas de medidas que España podría adoptar para reducir sus emisiones de gases de efecto invernadero. Léelas con atención y dinos cuál preferirías. Repetirás esta tarea 5 veces, con medidas distintas cada vez. No hay respuestas correctas ni incorrectas: nos interesa tu opinión.'});
+  for(let t=1;t<=5;t++){
+    const pa = randomCjProfile(), pb = randomCjProfile();
+    push({block:'EXP-C', code:`EC${t}`, varTag:'[cjpol_choice / cjpol_rate_a / cjpol_rate_b]', type:'conjoint', title:'¿Cuál de estas dos medidas preferirías que se aplicara en España?',
+      taskNum:t, taskTotal:5, singleText:true, optionALabel:'Medida A', optionBLabel:'Medida B',
+      textA: pa.text, textB: pb.text});
+  }
+
+  /* ---------- BLOC E · Comportamiento electoral ---------- */
+  push({block:'E', code:'E1', varTag:'[party_sympathy1]', type:'single', title:'¿Me podrías decir cuál es el partido político por el que sientes más simpatía?',
+    options: PARTIES});
+  push({block:'E', code:'E2', varTag:'[party_sympathy2]', type:'single', title:'Aunque no sientas simpatía por ningún partido, ¿hay alguno que te resulte un poco más cercano que los demás?',
+    options: PARTIES.filter(p=>p[0]!=='97'&&p[0]!=='98'),
+    skipIf: a => !(a['E1'] && (a['E1'].value==='97' || a['E1'].value==='98'))});
+  push({block:'E', code:'E3', varTag:'[vote_recall]', type:'single', title:'En las últimas elecciones generales (julio de 2023), ¿a qué partido votaste?',
+    options:[...PARTIES.filter(p=>!['96','97','98'].includes(p[0])), ['93','Voté en blanco'],['94','Voté nulo'],['95','No voté'],['96','Otro partido'],['97','No tenía derecho a voto'],['98','No lo sé / Prefiero no contestar']]});
+  push({block:'E', code:'E4', varTag:'[vote_intention]', type:'single', title:'Si mañana hubiera elecciones generales, ¿a qué partido votarías?',
+    options:[...PARTIES.filter(p=>!['96','97','98'].includes(p[0])), ['93','Votaría en blanco'],['94','Votaría nulo'],['95','No votaría'],['96','Otro partido'],['98','No lo sé / Prefiero no contestar']]});
+  push({block:'E', code:'E5', varTag:'[pride_*]', type:'grid_scale', title:'¿Cómo de orgulloso/a estás de ser...?',
+    minLabel:'Nada orgulloso/a', maxLabel:'Muy orgulloso/a',
+    items:[['reg','[de tu comunidad autónoma]'],['spain','Español/a'],['eur','Europeo']]});
+  push({block:'E', code:'E6', varTag:'[linz_moreno]', type:'single', title:'¿Dirías que te sientes...?',
+    options:[['1','Únicamente español/a'],['2','Más español/a que de mi comunidad autónoma'],['3','Tan español/a como de mi comunidad autónoma'],
+      ['4','Más de mi comunidad autónoma que español/a'],['5','Únicamente de mi comunidad autónoma']]});
+
+  /* ---------- EXPERIMENTO D · Sistemas electorales ---------- */
+  const group = S.assign.expD_group;
+  function pushRulesConjoint(){
+    push({block:'EXP-D', code:'ED-rules-intro', type:'info', title:'Conjoint 1 · Reglas electorales',
+      scenario:'Te mostraremos sistemas electorales hipotéticos, definidos por sus reglas, y tendrás que elegir cuál prefieres.\n\nComo referencia: hoy las circunscripciones son las provincias, cada provincia tiene un mínimo garantizado de escaños, y el umbral para obtener representación es del 3%.'});
+    for(let t=1;t<=4;t++){
+      const sysA = randomSystem(RULES_ATTRS), sysB = randomSystem(RULES_ATTRS);
+      push({block:'EXP-D', code:`ED1-rules-${t}`, varTag:'[conjoint_rules_choice / _rating_a / _rating_b]', type:'conjoint', title:'¿Cuál de estos dos sistemas electorales preferirías para España?',
+        taskNum:t, taskTotal:4, optionALabel:'Sistema electoral A', optionBLabel:'Sistema electoral B',
+        rows: RULES_ATTRS.map((attr,i)=>({label:attr.name, a:sysA[i], b:sysB[i]}))});
+    }
+  }
+  function pushConsConjoint(){
+    push({block:'EXP-D', code:'ED-cons-intro', type:'info', title:'Conjoint 2 · Consecuencias del sistema electoral',
+      scenario:'Te mostraremos sistemas electorales hipotéticos, definidos por sus consecuencias, y tendrás que elegir cuál prefieres.\n\nComo referencia: hoy el sistema da premio a los partidos grandes en algunos territorios, compensa a las regiones menos pobladas, dificulta la entrada de partidos pequeños, y suele exigir pactos de gobierno.'});
+    for(let t=1;t<=4;t++){
+      const sysA = randomSystem(CONS_ATTRS), sysB = randomSystem(CONS_ATTRS);
+      push({block:'EXP-D', code:`ED3-cons-${t}`, varTag:'[conjoint_cons_choice / _rating_a / _rating_b]', type:'conjoint', title:'¿Cuál de estos dos sistemas electorales preferirías para España?',
+        taskNum:t, taskTotal:4, optionALabel:'Sistema electoral A', optionBLabel:'Sistema electoral B',
+        rows: CONS_ATTRS.map((attr,i)=>({label:attr.name, a:sysA[i], b:sysB[i]}))});
+    }
+  }
+  if(group==='A'){ pushRulesConjoint(); pushConsConjoint(); }
+  else if(group==='B'){ pushConsConjoint(); pushRulesConjoint(); }
+  else if(group==='C'){ pushRulesConjoint(); }
+  else if(group==='D'){ pushConsConjoint(); }
+
+  /* ---------- EXPERIMENTO E · Seguro precios energéticos (solo grupos C/D) ---------- */
+  if(group==='C' || group==='D'){
+    const ver = S.assign.expE_version;
+    push({block:'EXP-E', code:'EE-intro', type:'info', title:'Experimento E · Seguro frente a picos de precios energéticos',
+      scenario:'Imagina que los precios de la energía suben a veces de forma brusca e imprevisible. El Gobierno está considerando ofrecer a los hogares una especie de seguro frente a estas subidas. La mayor parte del tiempo no recibirías nada. Pero si los precios de la energía superaran un determinado nivel, recibirías un pago. Esto se comprobaría cada seis meses.'});
+    push({block:'EXP-E', code:`EE-version${ver}`, varTag:'[exp_insurance]', type:'info', title: ver===1 ? 'Versión A — Promesa segura' : 'Versión B — Promesa insegura',
+      scenario: ver===1
+        ? 'Este seguro está recogido en la legislación nacional como un **derecho fijo y permanente**. **Ningún gobierno puede reducirlo, retrasarlo ni cancelarlo por sí solo**. Solo puede modificarse mediante una nueva ley aprobada por mayoría absoluta en el Parlamento.'
+        : 'El Gobierno **solo ha anunciado su intención** de ofrecer este seguro. Que llegue a aplicarse, y cuánto se pague, **se decide cada año en los presupuestos**. **Un futuro gobierno podría reducirlo, retrasarlo o cancelarlo por completo en cualquier momento**.'});
+    push({block:'EXP-E', code:'EE1', varTag:'[insurance_support]', type:'single', title:'¿Estarías a favor o en contra de este seguro energético?',
+      options:[['1','Muy a favor'],['2','Más bien a favor'],['3','Más bien en contra'],['4','Muy en contra']]});
+    push({block:'EXP-E', code:'EE2', varTag:'[check_insurance_period]', type:'single', title:'Según el texto que acabas de leer, ¿cada cuánto se comprueba si corresponde un pago?',
+      options:[['1','Una vez al año'],['2','Cada seis meses']]});
+    push({block:'EXP-E', code:'EE3', varTag:'[check_insurance_credibility]', type:'single', title:'Según el texto que acabas de leer, ¿puede el Gobierno cambiar o cancelar fácilmente este seguro?',
+      options:[['1','Sí, en cualquier momento'],['2','No, solo mediante un procedimiento especial y difícil']]});
+    push({block:'EXP-E', code:'EE4', varTag:'[insurance_expected_years]', type:'number', min:0, max:10, placeholder:'0–10', title:'De los próximos 10 años, ¿en cuántos crees que recibirías al menos un pago de este seguro?'});
+  }
+
+  /* ---------- BLOC F ---------- */
+  push({block:'F', code:'F1', varTag:'[employment]', type:'single', title:'¿Cuál de las siguientes situaciones describe mejor tu situación actual?',
+    options:[['1','Trabajando (por cuenta propia o ajena)'],['2','Jubilado/a o pensionista (trabajaba anteriormente)'],['3','Pensionista (no ha trabajado nunca)'],
+      ['4','En paro (trabajaba anteriormente)'],['5','En paro (busca su primer empleo)'],['6','Estudiante'],['7','Trabajo doméstico no remunerado'],['98','Otra situación']]});
+  push({block:'F', code:'F2', varTag:'[household_members]', type:'number', min:1, max:15, placeholder:'Número', title:'¿Cuántas personas viven en tu hogar, incluyéndote a ti?'});
+  push({block:'F', code:'F3', varTag:'[household_children]', type:'number', min:0, max:10, placeholder:'Número', title:'¿Cuántas personas menores de 18 años viven en tu hogar?'});
+  push({block:'F', code:'F4', varTag:'[household_income]', type:'single', title:'Sumando los ingresos netos mensuales de todas las personas de tu hogar, ¿cuál es aproximadamente el total?',
+    options:[['1','760 € o menos'],['2','Entre 761 € y 1.160 €'],['3','Entre 1.161 € y 1.560 €'],['4','Entre 1.561 € y 1.960 €'],['5','Entre 1.961 € y 2.360 €'],
+      ['6','Entre 2.361 € y 2.760 €'],['7','Entre 2.761 € y 3.260 €'],['8','Entre 3.261 € y 3.760 €'],['9','Entre 3.761 € y 4.260 €'],
+      ['10','Entre 4.261 € y 4.960 €'],['11','Más de 4.960 €'],['98','Prefiero no responder']]});
+  push({block:'F', code:'F5', varTag:'[entorno_rural_urban]', type:'single', title:'¿Dirías que vives en un lugar urbano, rural o algo intermedio?',
+    options:[['1','Muy urbano'],['2','Algo urbano'],['3','Más urbano que rural'],['4','Más rural que urbano'],['5','Algo rural'],['6','Muy rural']]});
+  push({block:'F', code:'F6', varTag:'[car_owner / car_fuel]', type:'single', title:'¿Dispones de coche o moto para tu uso habitual?',
+    options:[['1','Sí, de combustión (gasolina o diésel)'],['2','Sí, híbrido'],['3','Sí, eléctrico'],['4','No'],['98','No lo sé / Prefiero no responder']]});
+  push({block:'F', code:'F7', varTag:'[car_km]', type:'single', title:'Aproximadamente, ¿cuántos kilómetros recorres al año?',
+    options:[['1','Menos de 5.000'],['2','Entre 5.000 y 10.000'],['3','Entre 10.000 y 20.000'],['4','Más de 20.000'],['98','No lo sé / Prefiero no responder']],
+    skipIf: a => !(a['F6'] && ['1','2','3'].includes(a['F6'].value))});
+  push({block:'F', code:'F8', varTag:'[meat_freq]', type:'single', title:'¿Con qué frecuencia comes carne?',
+    options:[['1','A diario'],['2','Varias veces por semana'],['3','Una vez por semana'],['4','Alguna vez al mes'],['5','Nunca'],['98','No lo sé / Prefiero no responder']]});
+  push({block:'F', code:'F9', varTag:'[heating_type]', type:'single', title:'¿Qué sistema de calefacción tenéis principalmente en tu vivienda?',
+    options:[['1','Caldera de gas natural'],['2','Gasóleo'],['3','Butano o propano'],['4','Eléctrica'],['5','Biomasa o pellets'],['6','Calefacción central del edificio'],['7','No tenemos calefacción'],['98','No lo sé / Prefiero no responder']]});
+  push({block:'F', code:'F10', varTag:'[tenure]', type:'single', title:'Tu vivienda habitual, ¿es de propiedad o de alquiler?',
+    options:[['1','De propiedad'],['2','De alquiler'],['3','Cedida gratuitamente'],['98','No lo sé / Prefiero no responder']]});
+
+  return F;
+}
+
+/* ============ ENGINE ============ */
+let FLOW = [];
+let idx = 0;
+
+function updateTopbar(){
+  const done = Object.keys(S.answers).length;
+  const pct = Math.min(100, Math.round((idx/FLOW.length)*100));
+  $('#progressFill').style.width = pct+'%';
+  const cur = FLOW[idx];
+  $('#blockLabel').textContent = cur ? blockName(cur.block) : '';
+}
+function blockName(b){
+  const names = {A:'Bloc A · Identificació', B:'Bloc B · Actituds climàtiques', C:'Bloc C · Ideologia i confiança',
+    D:'Bloc D · Suport a polítiques', 'EXP-A':'Experiment A · Fiscalitat', 'EXP-B':'Experiment B · Nudge',
+    'EXP-C':'Experiment C · Conjoint polítiques', E:'Bloc E · Comportament electoral', 'EXP-D':'Experiment D · Sistemes electorals',
+    'EXP-E':'Experiment E · Assegurança', F:'Bloc F · Dades de la llar'};
+  return names[b] || b;
+}
+
+function startClock(){
+  S.startTs = Date.now();
+  S.clockTimer = setInterval(()=>{
+    $('#clock').textContent = fmtTime((Date.now()-S.startTs)/1000);
+  },500);
+}
+
+function renderCurrent(){
+  const app = $('#app');
+  app.innerHTML = '';
+  if(idx >= FLOW.length){ renderEnd(); return; }
+  const q = FLOW[idx];
+  if(q.skipIf && q.skipIf(S.answers)){ idx++; renderCurrent(); return; }
+  S.qStartTs = Date.now();
+  updateTopbar();
+  const onNext = (result) => {
+    const elapsed = (Date.now()-S.qStartTs)/1000;
+    S.timings.push({code:q.code, block:q.block, seconds:elapsed});
+    if(q.code) S.answers[q.code] = result;
+    idx++;
+    renderCurrent();
+  };
+  let node;
+  switch(q.type){
+    case 'info': node = renderInfo(q, onNext); break;
+    case 'single': node = renderSingle(q, onNext); break;
+    case 'scale': node = renderScale(q, onNext); break;
+    case 'number': node = renderNumber(q, onNext); break;
+    case 'rank': node = renderRank(q, onNext); break;
+    case 'grid_scale': node = renderGridScale(q, onNext); break;
+    case 'grid_binary': node = renderGridBinary(q, onNext); break;
+    case 'conjoint': node = renderConjointTask(q, onNext); break;
+    default: node = el('div',{},'?');
+  }
+  app.appendChild(node);
+  window.scrollTo({top:0,behavior:'instant'});
+}
+
+function renderEnd(){
+  clearInterval(S.clockTimer);
+  const totalSec = (Date.now()-S.startTs)/1000;
+  const app = $('#app');
+  app.innerHTML='';
+  const card = el('div',{class:'card end-screen'});
+  card.appendChild(el('h1',{},'Enquesta completada'));
+  card.appendChild(el('p',{class:'qsubtitle'}, `Has respost ${FLOW.length} pantalles en total.`));
+
+  const totalRow = el('div',{class:'stat-row'}, el('span',{},'Temps total'), el('b',{}, fmtTime(totalSec)));
+  card.appendChild(totalRow);
+
+  // per block breakdown
+  const byBlock = {};
+  S.timings.forEach(t=>{ byBlock[t.block] = (byBlock[t.block]||0) + t.seconds; });
+  Object.keys(byBlock).forEach(b=>{
+    card.appendChild(el('div',{class:'stat-row'}, el('span',{}, blockName(b)), el('b',{}, fmtTime(byBlock[b]))));
+  });
+
+  const table = el('table',{class:'timing'});
+  table.appendChild(el('tr',{}, el('th',{},'Pantalla'), el('th',{},'Bloc'), el('th',{},'Segons')));
+  S.timings.forEach(t=>{
+    table.appendChild(el('tr',{}, el('td',{},t.code||'—'), el('td',{},blockName(t.block)), el('td',{},t.seconds.toFixed(1))));
+  });
+  card.appendChild(el('div',{class:'grid-item-label', style:'margin-top:22px;'},'Detall per pantalla'));
+  card.appendChild(table);
+
+  const saveRow = el('div',{style:'margin-top:20px; padding:16px 18px; background:var(--paper2); border-radius:2px;'});
+  const saveStatus = el('div',{class:'hint', style:'margin-bottom:10px;'},
+    APPS_SCRIPT_URL ? 'Les respostes es poden guardar al full de Google compartit.' : 'Enviament desactivat: encara no s\'ha configurat la URL de l\'Apps Script (APPS_SCRIPT_URL).');
+  const saveBtn = el('button',{class:'btn btn-primary'}, 'Guardar respostes al full de Google');
+  saveBtn.disabled = !APPS_SCRIPT_URL;
+  saveBtn.onclick = async () => {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Enviant…';
+    try{
+      await fetch(APPS_SCRIPT_URL, {
+        method:'POST',
+        mode:'no-cors',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({
+          timestampClient: new Date().toISOString(),
+          totalSeconds: totalSec,
+          assign: S.assign,
+          answers: S.answers,
+          timings: S.timings
+        })
+      });
+      saveStatus.textContent = 'Respostes enviades. (Amb mode "no-cors" el navegador no confirma la resposta del servidor; comprova el full de Google per verificar-ho.)';
+      saveBtn.textContent = 'Enviat ✓';
+    } catch(err){
+      saveStatus.textContent = 'Hi ha hagut un error enviant les dades: ' + err.message;
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Torna-ho a provar';
+    }
+  };
+  saveRow.appendChild(saveStatus);
+  saveRow.appendChild(saveBtn);
+  card.appendChild(saveRow);
+
+  const btnRow = el('div',{class:'btn-row', style:'margin-top:24px;'});
+  const restart = el('button',{class:'btn btn-primary'}, 'Tornar a fer-la (nova aleatorització)');
+  restart.onclick = () => init();
+  btnRow.appendChild(restart);
+  card.appendChild(btnRow);
+
+  app.appendChild(card);
+  $('#topbar').style.display = 'none';
+}
+
+function renderStart(){
+  const app = $('#app');
+  app.innerHTML='';
+  const s = el('div',{class:'start-screen'});
+  s.appendChild(el('h1',{},'ATTCLIMPOLS · Ola 5'));
+  s.appendChild(el('p',{},'Simulador de pràctica del qüestionari (v.7, 3 d\'agost de 2026). Recorreràs els blocs A–F i els cinc experiments amb la mateixa lògica de branques i aleatorització que el disseny real.'));
+  const meta = el('div',{class:'meta-list'});
+  meta.appendChild(el('div',{},el('b',{},'A5 i A6'),' s\'ometen: s\'autocompleten amb dades de panell i no es mostren a l\'enquestat.'));
+  meta.appendChild(el('div',{},el('b',{},'Experiment A'),' — condició assignada a l\'atzar (1 de 5).'));
+  meta.appendChild(el('div',{},el('b',{},'Experiment B'),' — condició assignada a l\'atzar (1 de 3); el cartell es mostra com a text descriptiu (sense imatge).'));
+  meta.appendChild(el('div',{},el('b',{},'Experiment C'),' — 4 tasques de conjoint amb perfils generats a l\'atzar.'));
+  meta.appendChild(el('div',{},el('b',{},'Experiment D'),' — grup assignat a l\'atzar (A/B/C/D), amb l\'ordre de conjoints corresponent.'));
+  meta.appendChild(el('div',{},el('b',{},'Experiment E'),' — només si el grup assignat és C o D.'));
+  meta.appendChild(el('div',{},'El cronòmetre es posa en marxa en clicar «Començar» i queda registrat el temps per pantalla i per bloc.'));
+  s.appendChild(meta);
+  const btn = el('button',{class:'btn btn-primary'}, 'Començar');
+  btn.style.padding = '14px 40px';
+  btn.style.fontSize = '16px';
+  btn.onclick = () => { init(true); };
+  s.appendChild(btn);
+  app.appendChild(s);
+}
+
+function init(started){
+  S.answers = {}; S.assign = {}; S.timings = []; idx = 0;
+  clearInterval(S.clockTimer);
+  if(!started){ $('#topbar').style.display='none'; renderStart(); return; }
+  FLOW = buildFlow();
+  $('#topbar').style.display='block';
+  startClock();
+  renderCurrent();
+}
+
+init(false);
+</script>
+</body>
+</html>
