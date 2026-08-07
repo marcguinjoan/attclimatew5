@@ -5,6 +5,16 @@ lògica de blocs, experiments, aleatorització i branques condicionals que
 l'instrument real. Pensat per practicar i cronometrar l'enquesta abans del
 camp — no és l'eina de recollida de dades del panell.
 
+Comença amb la pàgina de consentiment informat i acaba amb el debriefing, el
+bloc del qual s'adapta al grup que l'atzar t'hagi assignat a l'Experiment B.
+Es pot navegar endavant i endarrere lliurement, i cap pregunta obliga a
+respondre: l'objectiu és cronometrar i revisar el recorregut, no recollir
+dades vàlides.
+
+El cartell-estímul de l'Experiment B **no** s'inclou com a imatge, i no s'hi
+ha d'afegir: l'expedient de la comissió d'ètica es compromet a que aquell
+material no es difongui fora de l'enquesta.
+
 ## Publicar-lo amb GitHub Pages
 
 1. Puja aquest fitxer `index.html` a un repositori de GitHub (per exemple

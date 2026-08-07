@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
 <title>ATTCLIMPOLS · Ola 5 · Simulador</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -140,6 +141,21 @@
   table.timing th{text-align:left; padding:6px 8px; border-bottom:2px solid var(--line); color:#5a6a63; font-weight:600;}
   table.timing td{padding:6px 8px; border-bottom:1px solid var(--paper2); font-family:'IBM Plex Mono',monospace;}
   .assign-tag{display:inline-block; background:var(--paper2); color:var(--accent-dark); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:3px 8px; border-radius:2px; margin:2px 4px 2px 0;}
+  .doc{font-size:14.5px; line-height:1.65; color:#26362f; margin-bottom:24px;}
+  .doc h3{font-family:'Newsreader',serif; font-size:18px; font-weight:600; margin:22px 0 6px; color:var(--accent-dark);}
+  .doc h3:first-child{margin-top:0;}
+  .doc p{margin:0 0 12px;}
+  .doc .cond{
+    background:var(--paper2); border-left:3px solid var(--amber); padding:12px 16px; margin:0 0 12px;
+  }
+  .doc .cond-tag{
+    display:block; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.06em; color:var(--amber); margin-bottom:6px;
+  }
+  .doc .note{
+    font-size:12.5px; color:#7a8a82; border-top:1px solid var(--line); padding-top:12px; margin-top:18px;
+  }
+  .doc a{color:var(--accent-dark);}
 </style>
 </head>
 <body>
@@ -249,6 +265,24 @@ const PARTIES = [
   ['98','No lo sé / Prefiero no contestar']
 ];
 
+/* ============ NAVEGACIÓ ============ */
+/* Botó "Enrere" disponible a totes les pantalles excepte la primera.
+   Cap pregunta valida que hi hagi resposta: sempre es pot tirar endavant. */
+function backBtn(){
+  if(idx <= 0) return null;
+  const b = el('button',{class:'btn btn-ghost'}, '← Enrere');
+  b.onclick = () => goBack();
+  return b;
+}
+function navRow(nextBtn, extra){
+  const row = el('div',{class:'btn-row'});
+  const bb = backBtn();
+  if(bb) row.appendChild(bb);
+  if(extra) row.appendChild(extra);
+  row.appendChild(nextBtn);
+  return row;
+}
+
 /* ============ QUESTION RENDERERS ============ */
 function questionShell(qcode, varTag, title, subtitle){
   const card = el('div',{class:'card'});
@@ -266,36 +300,60 @@ function renderInfo(q, onNext){
     sc.innerHTML = mdToHtml(q.scenario);
     card.appendChild(sc);
   } else if(q.intro) card.appendChild(el('p',{class:'qintro'}, q.intro));
-  const btnRow = el('div',{class:'btn-row'});
   const next = el('button',{class:'btn btn-primary'}, 'Continuar');
   next.onclick = () => onNext({});
-  btnRow.appendChild(next);
-  card.appendChild(btnRow);
+  card.appendChild(navRow(next));
   return card;
 }
 
-function renderSingle(q, onNext){
+/* Document llarg (consentiment, debrief): text amb encapçalaments. */
+function renderDoc(q, onNext, prev){
+  const card = el('div',{class:'card'});
+  if(q.code) card.appendChild(el('div',{class:'qcode'}, q.code));
+  if(q.title) card.appendChild(el('h2',{class:'qtitle'}, q.title));
+  const body = el('div',{class:'doc'});
+  body.innerHTML = q.html;
+  card.appendChild(body);
+  let selected = prev && prev.value != null ? prev.value : null;
+  if(q.options){
+    const opts = el('div',{class:'options'});
+    q.options.forEach(([val,label]) => {
+      const b = el('button',{class:'opt'}, label);
+      if(selected === val) b.classList.add('selected');
+      b.onclick = () => {
+        [...opts.children].forEach(c=>c.classList.remove('selected'));
+        b.classList.add('selected');
+        selected = val;
+      };
+      opts.appendChild(b);
+    });
+    card.appendChild(opts);
+  }
+  const next = el('button',{class:'btn btn-primary'}, q.nextLabel || 'Continuar');
+  next.onclick = () => onNext({value: selected});
+  card.appendChild(navRow(next));
+  return card;
+}
+
+function renderSingle(q, onNext, prev){
   const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
   if(q.scenario) card.insertBefore(el('div',{class:'scenario'}, q.scenario), card.children[card.children.length-0]);
-  let selected = null;
+  let selected = prev && prev.value != null ? prev.value : null;
   const opts = el('div',{class:'options'});
   q.options.forEach(([val,label]) => {
     const b = el('button',{class:'opt'}, label);
+    if(selected === val) b.classList.add('selected');
     b.onclick = () => {
       [...opts.children].forEach(c=>c.classList.remove('selected'));
       b.classList.add('selected');
       selected = val;
-      nextBtn.disabled = false;
     };
     opts.appendChild(b);
   });
   card.appendChild(opts);
-  const btnRow = el('div',{class:'btn-row'});
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
-  nextBtn.disabled = true;
   nextBtn.onclick = () => onNext({value: selected});
-  btnRow.appendChild(nextBtn);
-  card.appendChild(btnRow);
+  card.appendChild(navRow(nextBtn));
   return card;
 }
 
@@ -310,18 +368,18 @@ function buildScaleRow(min, max){
   return row;
 }
 
-function renderScale(q, onNext){
+function renderScale(q, onNext, prev){
   const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
   const min = q.min ?? 0, max = q.max ?? 10;
-  let selected = null;
+  let selected = prev && prev.value != null ? prev.value : null;
   const row = buildScaleRow(min, max);
   for(let i=min;i<=max;i++){
     const b = el('button',{class:'scale-btn'}, String(i));
+    if(selected === i) b.classList.add('selected');
     b.onclick = () => {
       [...row.children].forEach(c=>c.classList.remove('selected'));
       b.classList.add('selected');
       selected = i;
-      nextBtn.disabled = false;
     };
     row.appendChild(b);
   }
@@ -331,77 +389,69 @@ function renderScale(q, onNext){
       el('span',{}, `${min} = ${q.minLabel||''}`),
       el('span',{}, `${max} = ${q.maxLabel||''}`)));
   }
-  const btnRow = el('div',{class:'btn-row'});
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
-  nextBtn.disabled = true;
   nextBtn.onclick = () => onNext({value: selected});
-  btnRow.appendChild(nextBtn);
-  card.appendChild(btnRow);
+  card.appendChild(navRow(nextBtn));
   return card;
 }
 
-function renderNumber(q, onNext){
+function renderNumber(q, onNext, prev){
   const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
   const input = el('input',{type:'number', placeholder:q.placeholder||''});
   if(q.min!=null) input.min = q.min;
   if(q.max!=null) input.max = q.max;
+  if(prev && prev.value != null) input.value = prev.value;
   card.appendChild(input);
-  const btnRow = el('div',{class:'btn-row'});
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
-  nextBtn.onclick = () => { if(input.value==='') return; onNext({value: input.value}); };
-  btnRow.appendChild(nextBtn);
-  card.appendChild(btnRow);
+  nextBtn.onclick = () => onNext({value: input.value === '' ? null : input.value});
+  card.appendChild(navRow(nextBtn));
   input.focus();
   return card;
 }
 
-function renderRank(q, onNext){
+function renderRank(q, onNext, prev){
   const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
   card.appendChild(el('div',{class:'hint'}, `Haz clic en los ítems por orden, del más importante al menos importante (1–${q.items.length}).`));
   const list = el('div',{class:'rank-list'});
-  const order = {};
-  let counter = 0;
+  const order = prev && prev.value ? {...prev.value} : {};
+  let counter = Object.keys(order).length;
   q.items.forEach(([val,label]) => {
-    const badge = el('span',{class:'rank-badge'}, '');
+    const badge = el('span',{class:'rank-badge'}, order[val] ? String(order[val]) : '');
     const item = el('div',{class:'rank-item'}, badge, el('span',{}, label));
+    if(order[val]) item.classList.add('ranked');
     item.onclick = () => {
       if(order[val]){ return; }
       counter++;
       order[val]=counter;
       badge.textContent = counter;
       item.classList.add('ranked');
-      if(counter===q.items.length) nextBtn.disabled = false;
     };
     list.appendChild(item);
   });
   card.appendChild(list);
-  const btnRow = el('div',{class:'btn-row'});
   const resetBtn = el('button',{class:'btn btn-ghost'}, 'Reiniciar orden');
-  resetBtn.onclick = () => { Object.keys(order).forEach(k=>delete order[k]); counter=0; [...list.children].forEach(it=>{it.classList.remove('ranked'); it.querySelector('.rank-badge').textContent='';}); nextBtn.disabled = true; };
+  resetBtn.onclick = () => { Object.keys(order).forEach(k=>delete order[k]); counter=0; [...list.children].forEach(it=>{it.classList.remove('ranked'); it.querySelector('.rank-badge').textContent='';}); };
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
-  nextBtn.disabled = true;
   nextBtn.onclick = () => onNext({value: {...order}});
-  btnRow.appendChild(resetBtn);
-  btnRow.appendChild(nextBtn);
-  card.appendChild(btnRow);
+  card.appendChild(navRow(nextBtn, resetBtn));
   return card;
 }
 
-function renderGridScale(q, onNext){
+function renderGridScale(q, onNext, prev){
   const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
   const min = q.min ?? 0, max = q.max ?? 10;
-  const answers = {};
+  const answers = prev && prev.value ? {...prev.value} : {};
   q.items.forEach(([val,label]) => {
     const gi = el('div',{class:'grid-item'});
     gi.appendChild(el('div',{class:'grid-item-label'}, label));
     const row = buildScaleRow(min, max);
     for(let i=min;i<=max;i++){
       const b = el('button',{class:'scale-btn'}, String(i));
+      if(answers[val] === i) b.classList.add('selected');
       b.onclick = () => {
         [...row.children].forEach(c=>c.classList.remove('selected'));
         b.classList.add('selected');
         answers[val]=i;
-        nextBtn.disabled = Object.keys(answers).length < q.items.length;
       };
       row.appendChild(b);
     }
@@ -413,45 +463,39 @@ function renderGridScale(q, onNext){
     }
     card.appendChild(gi);
   });
-  const btnRow = el('div',{class:'btn-row'});
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
-  nextBtn.disabled = true;
   nextBtn.onclick = () => onNext({value: {...answers}});
-  btnRow.appendChild(nextBtn);
-  card.appendChild(btnRow);
+  card.appendChild(navRow(nextBtn));
   return card;
 }
 
-function renderGridBinary(q, onNext){
+function renderGridBinary(q, onNext, prev){
   const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
-  const answers = {};
+  const answers = prev && prev.value ? {...prev.value} : {};
   q.items.forEach(([val,label]) => {
     const gi = el('div',{class:'grid-item'});
     gi.appendChild(el('div',{class:'grid-item-label'}, label));
     const row = el('div',{class:'binary-row'});
     ['Sí','No'].forEach(opt => {
       const b = el('button',{class:'binary-btn'}, opt);
+      if(answers[val] === opt) b.classList.add('selected');
       b.onclick = () => {
         [...row.children].forEach(c=>c.classList.remove('selected'));
         b.classList.add('selected');
         answers[val]=opt;
-        nextBtn.disabled = Object.keys(answers).length < q.items.length;
       };
       row.appendChild(b);
     });
     gi.appendChild(row);
     card.appendChild(gi);
   });
-  const btnRow = el('div',{class:'btn-row'});
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
-  nextBtn.disabled = true;
   nextBtn.onclick = () => onNext({value: {...answers}});
-  btnRow.appendChild(nextBtn);
-  card.appendChild(btnRow);
+  card.appendChild(navRow(nextBtn));
   return card;
 }
 
-function renderConjointTask(q, onNext){
+function renderConjointTask(q, onNext, prev){
   const card = questionShell(q.code, q.varTag, q.title, `Tarea ${q.taskNum} de ${q.taskTotal}`);
   if(q.singleText){
     const boxA = el('div',{class:'scenario'});
@@ -470,39 +514,36 @@ function renderConjointTask(q, onNext){
     card.appendChild(table);
   }
 
-  let choice = null;
+  const pv = (prev && prev.value) || {};
+  let choice = pv.choice ?? null, rateA = pv.rateA ?? null, rateB = pv.rateB ?? null;
   const opts = el('div',{class:'options'});
   [['A', q.optionALabel||'Medida A'], ['B', q.optionBLabel||'Medida B']].forEach(([val,label]) => {
     const b = el('button',{class:'opt'}, label);
-    b.onclick = () => { [...opts.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); choice = val; checkReady(); };
+    if(choice === val) b.classList.add('selected');
+    b.onclick = () => { [...opts.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); choice = val; };
     opts.appendChild(b);
   });
   card.appendChild(el('div',{class:'grid-item-label'},'¿Cuál preferirías?'));
   card.appendChild(opts);
 
-  let rateA = null, rateB = null;
   const rateBlockA = el('div',{class:'rate-block'});
   rateBlockA.appendChild(el('div',{class:'rate-label'}, `Valoración ${q.optionALabel||'Medida A'} (0 = totalmente en contra, 10 = totalmente a favor)`));
   const rowA = el('div',{class:'mini-scale'});
   rowA.style.display='grid'; rowA.style.gridTemplateColumns='repeat(6, 1fr)'; rowA.style.rowGap='4px';
-  for(let i=0;i<=10;i++){ const b=el('button',{class:'mini-btn'},String(i)); b.onclick=()=>{[...rowA.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); rateA=i; checkReady();}; rowA.appendChild(b);}
+  for(let i=0;i<=10;i++){ const b=el('button',{class:'mini-btn'},String(i)); if(rateA===i) b.classList.add('selected'); b.onclick=()=>{[...rowA.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); rateA=i;}; rowA.appendChild(b);}
   rateBlockA.appendChild(rowA);
   const rateBlockB = el('div',{class:'rate-block', style:'margin-top:16px;'});
   rateBlockB.appendChild(el('div',{class:'rate-label'}, `Valoración ${q.optionBLabel||'Medida B'}`));
   const rowB = el('div',{class:'mini-scale'});
   rowB.style.display='grid'; rowB.style.gridTemplateColumns='repeat(6, 1fr)'; rowB.style.rowGap='4px';
-  for(let i=0;i<=10;i++){ const b=el('button',{class:'mini-btn'},String(i)); b.onclick=()=>{[...rowB.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); rateB=i; checkReady();}; rowB.appendChild(b);}
+  for(let i=0;i<=10;i++){ const b=el('button',{class:'mini-btn'},String(i)); if(rateB===i) b.classList.add('selected'); b.onclick=()=>{[...rowB.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); rateB=i;}; rowB.appendChild(b);}
   rateBlockB.appendChild(rowB);
   card.appendChild(rateBlockA);
   card.appendChild(rateBlockB);
 
-  const btnRow = el('div',{class:'btn-row'});
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
-  nextBtn.disabled = true;
-  function checkReady(){ nextBtn.disabled = !(choice!==null && rateA!==null && rateB!==null); }
   nextBtn.onclick = () => onNext({value:{choice, rateA, rateB}});
-  btnRow.appendChild(nextBtn);
-  card.appendChild(btnRow);
+  card.appendChild(navRow(nextBtn));
   return card;
 }
 
@@ -516,6 +557,72 @@ function buildFlow(){
   S.assign.expB_condition = randInt(1,3);
   S.assign.expD_group = pick(['A','B','C','D']);
   S.assign.expE_version = randInt(1,2);
+
+  /* ---------- CONSENTIMENT INFORMAT ---------- */
+  push({block:'CONSENT', code:'CONSENT', varTag:'[consent]', type:'doc',
+    title:'Detalles de la encuesta',
+    nextLabel:'Continuar',
+    html:`
+      <p>Se te invita a participar en un estudio que forma parte de un proyecto de investigación sobre
+      actitudes políticas y opinión pública, llevado a cabo por el equipo ATTCLIMPOLS de la Universitat
+      Autònoma de Barcelona (UAB).</p>
+
+      <h3>Procedimiento</h3>
+      <p>Si decides participar, cumplimentarás este cuestionario en línea. Te llevará aproximadamente
+      20 minutos completarlo. Al finalizar encontrarás una página con información adicional sobre los
+      objetivos del estudio.</p>
+
+      <h3>Participación voluntaria y derecho de retirada</h3>
+      <p>La participación en esta investigación es voluntaria. No tienes ninguna obligación de participar
+      en este estudio. Incluso si decides participar en el estudio en un primer momento y después cambias
+      de opinión, tienes derecho a abandonarlo en cualquier momento.</p>
+
+      <h3>Confidencialidad</h3>
+      <p>No te pediremos tu nombre, tu dirección, tu correo electrónico ni ningún otro dato que permita
+      identificarte directamente. El cuestionario sí incluye preguntas sobre tus opiniones políticas y sobre
+      tus características sociodemográficas (edad, género, nivel de estudios, situación laboral e ingresos
+      del hogar), que se utilizan únicamente con fines de investigación. El equipo investigador recibe los
+      datos sin identificadores directos: la gestión de tu identidad como miembro del panel corresponde
+      exclusivamente a [PROVEEDOR], de acuerdo con su política de privacidad.</p>
+      <p>Esta encuesta forma parte de un proyecto en el que se han llevado a cabo varias oleadas previas.
+      Si has participado en anteriores oleadas de la encuesta, tus respuestas se vincularán a las de oleadas
+      anteriores mediante un código de panel que no permite identificarte.</p>
+      <p>Los resultados de esta investigación se presentarán siempre de forma agregada y no se te
+      identificará personalmente en ninguna publicación. Los datos se utilizarán únicamente con fines de
+      investigación científica: en ningún caso se emplearán con fines comerciales ni se cederán a terceros
+      ajenos a la investigación.</p>
+      <p>Al aceptar participar nos das tu consentimiento explícito para tratar las opiniones políticas
+      recabadas únicamente con fines de investigación.</p>
+      <p>En una de las secciones del cuestionario se te ofrecerá un enlace opcional a la página web de una
+      organización externa. Como parte de la investigación registramos únicamente si se hace clic o no en
+      ese enlace. El enlace es voluntario, no es necesario para continuar y no afecta a tu compensación.</p>
+      <p>La información que proporciones se almacenará en servidores seguros de Microsoft de la UAB,
+      accesibles únicamente mediante dispositivos protegidos por contraseña y cortafuegos, hasta 2029.</p>
+
+      <h3>Requisitos de ciencia abierta</h3>
+      <p>Los Proyectos de Generación de Conocimiento de la Agencia Estatal de Investigación (AEI) exigen
+      acceso abierto a las publicaciones y una gestión FAIR (Findable, Accessible, Interoperable, Reusable)
+      de los datos de investigación. Los datos recopilados por el proyecto ATTCLIMPOLS tendrán un periodo
+      máximo de embargo de 12 meses. Transcurrido este plazo, el conjunto de datos se depositará de forma
+      permanente en el repositorio CORA (Catalan Open Research Area), siguiendo los principios FAIR y las
+      directrices de la European Open Science Cloud. Antes del depósito, el fichero se anonimiza por
+      completo: se elimina el código de panel y se agrupan las variables que podrían permitir una
+      identificación indirecta, de modo que el lugar de residencia solo se publica a nivel de provincia y
+      de tamaño de municipio.</p>
+
+      <h3>Contacto</h3>
+      <p>Para más información sobre la investigación, puedes contactar con el investigador principal,
+      Marc Guinjoan (marc.guinjoanc@uab.cat).</p>
+      <p>Puedes ejercer tus derechos de acceso, rectificación, supresión, limitación, portabilidad y
+      oposición, así como retirar tu consentimiento en cualquier momento, escribiendo a esa misma dirección.
+      Si tienes dudas sobre el tratamiento de tus datos, puedes dirigirte al Delegado de Protección de Datos
+      de la UAB (proteccio.dades@uab.cat).</p>
+
+      <p><b>Selecciona una de las siguientes opciones. Si no deseas participar, la encuesta finalizará de
+      inmediato:</b></p>
+      <p class="note">Nota del simulador: en l'instrument real, respondre «No» tanca l'enquesta.
+      Aquí pots continuar igualment per poder cronometrar-la sencera.</p>`,
+    options:[['1','Sí, acepto participar'],['2','No, no acepto participar']]});
 
   /* ---------- BLOC A ---------- */
   push({block:'A', code:'A1', varTag:'[gender]', type:'single', title:'¿Con qué género te identificas?',
@@ -776,6 +883,120 @@ function buildFlow(){
   push({block:'F', code:'F10', varTag:'[tenure]', type:'single', title:'Tu vivienda habitual, ¿es de propiedad o de alquiler?',
     options:[['1','De propiedad'],['2','De alquiler'],['3','Cedida gratuitamente'],['98','No lo sé / Prefiero no responder']]});
 
+  /* ---------- DEBRIEFING ---------- */
+  /* El bloc del cartell és condicional al grup del nudge (Experiment B),
+     tal com preveu el document de debriefing. */
+  const cB = S.assign.expB_condition;
+  const posterBlock = cB === 1 ? '' : `
+      <div class="cond">
+        <span class="cond-tag">Grups 2 i 3 · has vist el cartell</span>
+        <p>Antes de responder se te mostró un cartel con un mensaje sobre el comportamiento medioambiental
+        de la población española. Ese cartel fue elaborado por el equipo de investigación para este estudio.</p>
+        <p>Es importante destacar que la afirmación presentada en el cartel era exacta y estaba basada en
+        investigación científica publicada. En concreto, que «una clara mayoría» de la población está
+        dispuesta a contribuir económicamente a la lucha contra el cambio climático se corresponde con el
+        65 % de los españoles que declaran estar dispuestos a aportar un 1 % de su renta, según Andre,
+        Boneva, Chopra y Falk (2024), publicado en <i>Nature Climate Change</i>. Únicamente se manipuló
+        experimentalmente la fuente aparente del mensaje.</p>
+      </div>` + (cB === 2 ? `
+      <div class="cond">
+        <span class="cond-tag">Grup 2 · cartell sense cap logotip</span>
+        <p>El cartel que se te mostró no iba acompañado de ningún logotipo ni de ninguna indicación sobre
+        quién lo había elaborado. En esta investigación comparamos las respuestas de quienes vieron el
+        cartel sin atribución con las de quienes vieron exactamente el mismo cartel atribuido al Gobierno
+        de España, para saber si la fuente percibida de un mensaje modifica su efecto. En tu caso no se te
+        ocultó ninguna información ni se te presentó ninguna atribución falsa.</p>
+      </div>` : `
+      <div class="cond">
+        <span class="cond-tag">Grup 3 · cartell amb el logotip del Gobierno de España</span>
+        <p><b>¿Por qué se utilizó un logotipo gubernamental?</b></p>
+        <p>El logotipo gubernamental se incluyó únicamente con fines de investigación, para examinar si la
+        fuente percibida de un mensaje por lo demás idéntico influye en las respuestas de las personas.</p>
+        <p>El cartel en sí fue creado por el equipo de investigación y no fue producido, respaldado ni
+        distribuido por el Gobierno de España.</p>
+        <p>Como informar a los participantes de esta manipulación de antemano habría afectado a los
+        resultados, fue necesario no revelar esta información hasta el final del estudio.</p>
+      </div>`);
+
+  push({block:'DEBRIEF', code:'DEBRIEF', type:'doc',
+    title:'Información sobre la encuesta',
+    nextLabel:'Continuar',
+    html:`
+      <h3>El objetivo de esta encuesta</h3>
+      <p>Gracias por tu participación. Tu participación contribuye a la investigación sobre cómo los
+      ciudadanos forman sus opiniones acerca de las políticas climáticas, las instituciones políticas y el
+      comportamiento proambiental.</p>
+      <p>Algunos aspectos del estudio no pudieron explicarse por completo antes de que completaras el
+      cuestionario, ya que hacerlo habría influido en las respuestas de los participantes y habría
+      comprometido la validez científica de la investigación. A continuación, queremos explicarte el
+      objetivo de cada componente experimental.</p>
+
+      <h3>Experimento 1: Compensación en las políticas climáticas</h3>
+      <p>Se te mostró una versión de una propuesta de política climática. En el texto se pedía a los
+      participantes que se imaginaran que el gobierno español estaba considerando una reforma importante de
+      la fiscalidad energética con el fin de reducir las emisiones de gases de efecto invernadero. Además,
+      distintos participantes recibieron descripciones diferentes de la misma política, variando la forma en
+      que se presentaban las medidas de compensación y cómo se describía su puesta en marcha. Un grupo de
+      participantes no recibió ninguna medida de compensación.</p>
+      <p>El Gobierno de España no ha propuesto la reforma concreta que se describía, ni ninguna de las
+      medidas de compensación mencionadas: el escenario se elaboró con fines de investigación.</p>
+      <p>El objetivo de este experimento es entender cómo distintos encuadres de la política y garantías
+      institucionales influyen en el apoyo ciudadano a las políticas climáticas.</p>
+
+      <h3>Experimento 2: Comportamiento proambiental</h3>
+      <p>Se te preguntó en qué medida estarías dispuesto/a a colaborar económicamente con Reforesta, una
+      organización española sin ánimo de lucro dedicada a la reforestación y la restauración de ecosistemas,
+      y se te ofreció un enlace opcional a su página web. En ningún momento se te pidió dinero ni ninguna
+      parte de tu compensación por participar. Como parte de la investigación registramos únicamente si se
+      hizo clic o no en ese enlace.</p>
+      ${posterBlock}
+
+      <h3>Experimento 3: Sistemas electorales</h3>
+      <p>Finalmente, has evaluado diferentes diseños sobre sistemas electorales. En este caso, los atributos
+      que se han mostrado se han atribuido de forma aleatoria entre los participantes. El objetivo de este
+      experimento es comprender mejor cómo piensan los ciudadanos sobre los sistemas electorales y si las
+      preferencias varían según cómo se presenta la información.</p>
+
+      <h3>Tus derechos</h3>
+      <p>Tu participación en este estudio sigue siendo totalmente voluntaria.</p>
+      <p>Si, tras conocer el objetivo completo del estudio, ya no deseas que tus respuestas se incluyan en
+      la investigación, puedes solicitar la retirada de tus datos contactando con el equipo de investigación
+      a través de la información de contacto facilitada en la hoja informativa para participantes. Para
+      poder localizar tus respuestas necesitaremos el código de panel con el que participaste. Una vez el
+      conjunto de datos se haya anonimizado de forma definitiva para su publicación, ya no será posible
+      identificar ni retirar respuestas individuales.</p>
+      <p>Los datos recogidos en esta encuesta se utilizarán únicamente con fines de investigación
+      científica. Se tratan de forma confidencial y de acuerdo con el Reglamento General de Protección de
+      Datos (RGPD) y con las políticas institucionales aplicables. El equipo investigador no dispone de
+      información que permita identificarte: los resultados se analizan y se publican siempre de forma
+      agregada, y el fichero que se deposite en acceso abierto estará completamente anonimizado. En ningún
+      caso se utilizarán con fines comerciales ni se cederán a terceros ajenos a la investigación.</p>
+
+      <h3>Gracias</h3>
+      <p>Gracias de nuevo por tu valiosa participación. Tu contribución ayuda a los investigadores a
+      comprender mejor cómo evalúan los ciudadanos las políticas públicas, las instituciones democráticas y
+      las iniciativas medioambientales, contribuyendo en última instancia a la elaboración de políticas
+      basadas en la evidencia y al conocimiento científico.</p>
+      <p>Si quieres más información del proyecto visita la web <a href="http://attclimate.net"
+      target="_blank" rel="noopener">attclimate.net</a> o contacta con el investigador principal,
+      Marc Guinjoan (marc.guinjoanc@uab.cat).</p>
+
+      <p class="note">Nota del simulador: aquest és el text del debriefing tal com està avui. Encara parla
+      de tres experiments i el qüestionari ja en té més, o sigui que s'ha d'actualitzar abans del camp.
+      El bloc del cartell que veus a dalt és el que et tocaria pel grup que t'ha assignat l'atzar en
+      l'Experiment B.</p>`});
+
+  const ack = cB === 1
+    ? 'He leído la información anterior sobre los objetivos de esta encuesta y entiendo que mis respuestas se utilizarán únicamente con fines de investigación científica.'
+    : cB === 2
+      ? 'He leído la información anterior. Entiendo que el cartel que se me mostró fue elaborado por el equipo de investigación con fines de investigación, que la información que contenía se basa en evidencia científica publicada, y que mis respuestas se utilizarán únicamente con fines de investigación científica.'
+      : 'Entiendo que la versión del estudio que vi incluía un logotipo gubernamental únicamente con fines de investigación. Reconozco que el cartel fue creado por el equipo de investigación y que no era una comunicación oficial del Gobierno de España. Asimismo, entiendo que la información presentada en el cartel se basaba en evidencia científica real, que la atribución de la fuente se modificó temporalmente con fines experimentales, y que mis respuestas se utilizarán únicamente con fines de investigación científica.';
+
+  push({block:'DEBRIEF', code:'DEBRIEF_ACK', varTag:'[debrief_ack]', type:'single',
+    title:'Confirmación activa',
+    subtitle:'Para asegurarnos de que has leído y comprendido la información anterior, marca la casilla siguiente antes de finalizar tu participación.',
+    options:[['1', ack]]});
+
   return F;
 }
 
@@ -791,18 +1012,41 @@ function updateTopbar(){
   $('#blockLabel').textContent = cur ? blockName(cur.block) : '';
 }
 function blockName(b){
-  const names = {A:'Bloc A · Identificació', B:'Bloc B · Actituds climàtiques', C:'Bloc C · Ideologia i confiança',
+  const names = {CONSENT:'Consentiment informat', DEBRIEF:'Debriefing',
+    A:'Bloc A · Identificació', B:'Bloc B · Actituds climàtiques', C:'Bloc C · Ideologia i confiança',
     D:'Bloc D · Suport a polítiques', 'EXP-A':'Experiment A · Fiscalitat', 'EXP-B':'Experiment B · Nudge',
     'EXP-C':'Experiment C · Conjoint polítiques', E:'Bloc E · Comportament electoral', 'EXP-D':'Experiment D · Sistemes electorals',
     'EXP-E':'Experiment E · Assegurança', F:'Bloc F · Dades de la llar'};
   return names[b] || b;
 }
 
-function startClock(){
-  S.startTs = Date.now();
+function resumeClock(){
+  if(S.clockTimer) clearInterval(S.clockTimer);
   S.clockTimer = setInterval(()=>{
     $('#clock').textContent = fmtTime((Date.now()-S.startTs)/1000);
   },500);
+}
+function startClock(){
+  S.startTs = Date.now();
+  resumeClock();
+}
+
+/* El temps s'acumula per posició del flux, de manera que tornar enrere
+   i tornar a passar per una pantalla suma en comptes de duplicar files. */
+function recordTiming(i, q, elapsed){
+  if(!S.timings[i]) S.timings[i] = {code:q.code, block:q.block, seconds:0};
+  S.timings[i].seconds += elapsed;
+}
+
+function goBack(){
+  if(idx < FLOW.length && S.qStartTs){
+    recordTiming(idx, FLOW[idx], (Date.now()-S.qStartTs)/1000);
+  }
+  let j = Math.min(idx, FLOW.length) - 1;
+  while(j > 0 && FLOW[j].skipIf && FLOW[j].skipIf(S.answers)) j--;
+  idx = Math.max(0, j);
+  resumeClock();
+  renderCurrent();
 }
 
 function renderCurrent(){
@@ -813,23 +1057,25 @@ function renderCurrent(){
   if(q.skipIf && q.skipIf(S.answers)){ idx++; renderCurrent(); return; }
   S.qStartTs = Date.now();
   updateTopbar();
+  const here = idx;
   const onNext = (result) => {
-    const elapsed = (Date.now()-S.qStartTs)/1000;
-    S.timings.push({code:q.code, block:q.block, seconds:elapsed});
+    recordTiming(here, q, (Date.now()-S.qStartTs)/1000);
     if(q.code) S.answers[q.code] = result;
-    idx++;
+    idx = here + 1;
     renderCurrent();
   };
+  const prev = q.code ? S.answers[q.code] : undefined;
   let node;
   switch(q.type){
     case 'info': node = renderInfo(q, onNext); break;
-    case 'single': node = renderSingle(q, onNext); break;
-    case 'scale': node = renderScale(q, onNext); break;
-    case 'number': node = renderNumber(q, onNext); break;
-    case 'rank': node = renderRank(q, onNext); break;
-    case 'grid_scale': node = renderGridScale(q, onNext); break;
-    case 'grid_binary': node = renderGridBinary(q, onNext); break;
-    case 'conjoint': node = renderConjointTask(q, onNext); break;
+    case 'doc': node = renderDoc(q, onNext, prev); break;
+    case 'single': node = renderSingle(q, onNext, prev); break;
+    case 'scale': node = renderScale(q, onNext, prev); break;
+    case 'number': node = renderNumber(q, onNext, prev); break;
+    case 'rank': node = renderRank(q, onNext, prev); break;
+    case 'grid_scale': node = renderGridScale(q, onNext, prev); break;
+    case 'grid_binary': node = renderGridBinary(q, onNext, prev); break;
+    case 'conjoint': node = renderConjointTask(q, onNext, prev); break;
     default: node = el('div',{},'?');
   }
   app.appendChild(node);
@@ -839,25 +1085,32 @@ function renderCurrent(){
 function renderEnd(){
   clearInterval(S.clockTimer);
   const totalSec = (Date.now()-S.startTs)/1000;
+  const timings = S.timings.filter(Boolean);
   const app = $('#app');
   app.innerHTML='';
   const card = el('div',{class:'card end-screen'});
   card.appendChild(el('h1',{},'Enquesta completada'));
-  card.appendChild(el('p',{class:'qsubtitle'}, `Has respost ${FLOW.length} pantalles en total.`));
+  card.appendChild(el('p',{class:'qsubtitle'}, `Has passat per ${timings.length} de ${FLOW.length} pantalles.`));
+
+  const backRow = el('div',{class:'btn-row', style:'justify-content:flex-start; margin-bottom:18px;'});
+  const backEnd = el('button',{class:'btn btn-ghost'}, '← Tornar a l\'última pantalla');
+  backEnd.onclick = () => goBack();
+  backRow.appendChild(backEnd);
+  card.appendChild(backRow);
 
   const totalRow = el('div',{class:'stat-row'}, el('span',{},'Temps total'), el('b',{}, fmtTime(totalSec)));
   card.appendChild(totalRow);
 
   // per block breakdown
   const byBlock = {};
-  S.timings.forEach(t=>{ byBlock[t.block] = (byBlock[t.block]||0) + t.seconds; });
+  timings.forEach(t=>{ byBlock[t.block] = (byBlock[t.block]||0) + t.seconds; });
   Object.keys(byBlock).forEach(b=>{
     card.appendChild(el('div',{class:'stat-row'}, el('span',{}, blockName(b)), el('b',{}, fmtTime(byBlock[b]))));
   });
 
   const table = el('table',{class:'timing'});
   table.appendChild(el('tr',{}, el('th',{},'Pantalla'), el('th',{},'Bloc'), el('th',{},'Segons')));
-  S.timings.forEach(t=>{
+  timings.forEach(t=>{
     table.appendChild(el('tr',{}, el('td',{},t.code||'—'), el('td',{},blockName(t.block)), el('td',{},t.seconds.toFixed(1))));
   });
   card.appendChild(el('div',{class:'grid-item-label', style:'margin-top:22px;'},'Detall per pantalla'));
@@ -881,7 +1134,7 @@ function renderEnd(){
           totalSeconds: totalSec,
           assign: S.assign,
           answers: S.answers,
-          timings: S.timings
+          timings: timings
         })
       });
       saveStatus.textContent = 'Respostes enviades. (Amb mode "no-cors" el navegador no confirma la resposta del servidor; comprova el full de Google per verificar-ho.)';
