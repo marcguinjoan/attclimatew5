@@ -103,14 +103,6 @@
   }
   .conjoint-table td{border-bottom:1px solid var(--paper2); padding:11px 12px; vertical-align:top; line-height:1.4;}
   .conjoint-table td.attr-label{font-weight:600; color:#4a5a53; width:26%;}
-  .mini-scale{display:flex; gap:2px; margin-top:6px;}
-  .mini-btn{
-    flex:1; padding:6px 0; text-align:center; border:1px solid var(--line); background:var(--white);
-    cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:11px; border-radius:1px;
-  }
-  .mini-btn.selected{background:var(--accent); color:var(--white); border-color:var(--accent);}
-  .rate-block{margin-top:8px;}
-  .rate-label{font-size:13px; font-weight:600; margin-bottom:4px;}
   .btn-row{display:flex; justify-content:flex-end; gap:10px; margin-top:8px;}
   .btn{
     padding:12px 26px; border-radius:2px; border:none; font-size:14.5px; font-weight:600;
@@ -305,8 +297,7 @@ const CONS_ATTRS = [
   {name:'Proporcionalidad', levels:['Premio a los partidos grandes','Reparto proporcional a los votos']},
   {name:'Equilibrio Territorial', levels:['Más peso a las regiones pobladas','Compensación a las regiones menos pobladas']},
   {name:'Representación de Partidos Pequeños', levels:['Difícil entrada de partidos pequeños','Fácil entrada de partidos pequeños']},
-  {name:'Capacidad para Formar Gobierno', levels:['Necesita pactar para gobernar','Puede gobernar en solitario']},
-  {name:'Personalización de la Política', levels:['Disciplina de partido','Voto según criterio propio']}
+  {name:'Capacidad para Formar Gobierno', levels:['Necesita pactar para gobernar','Puede gobernar en solitario']}
 ];
 function randomSystem(attrs){ return attrs.map(a => pick(a.levels)); }
 
@@ -325,6 +316,9 @@ const PARTIES = [
    Si l'etiqueta no és un nom net (p. ex. "[pol_cc_*]" o "[a / b / c]"),
    es fa servir el codi de pregunta, que sempre és únic. */
 function varKeyOf(q){
+  /* Les pantalles amb diverses preguntes exporten una columna per subpregunta,
+     de manera que la pantalla en si es queda amb el codi. */
+  if(q.parts) return (q.code || 'x').replace(/[^A-Za-z0-9_]/g, '_');
   let k = (q.varTag || '').replace(/[\[\]]/g, '').trim();
   if(k.includes('/')) k = '';
   k = k.replace(/\*/g, '').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
@@ -336,12 +330,16 @@ function varKeyOf(q){
 /* Assigna una columna única a cada pantalla del flux (resol duplicats). */
 function assignVarKeys(flow){
   const used = {};
-  flow.forEach(q => {
-    let k = varKeyOf(q);
-    if(used[k]) k = `${k}_${q.code}`;
+  const take = (base, code) => {
+    let k = base;
+    if(used[k]) k = `${k}_${code}`;
     while(used[k]) k = `${k}_`;
     used[k] = true;
-    q.varKey = k;
+    return k;
+  };
+  flow.forEach(q => {
+    q.varKey = take(varKeyOf(q), q.code);
+    if(q.parts) q.parts.forEach(p => { p.varKey = take(varKeyOf(p), q.code); });
   });
 }
 
@@ -442,24 +440,60 @@ function renderDoc(q, onNext, prev){
   return card;
 }
 
-function renderSingle(q, onNext, prev){
-  const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
-  if(q.scenario) card.insertBefore(el('div',{class:'scenario'}, q.scenario), card.children[card.children.length-0]);
-  let selected = prev && prev.value != null ? prev.value : null;
+/* Llista d'opcions reutilitzable. Si l'opció té un enllaç associat
+   (q.optionLinks), en clicar-la s'obre en una pestanya nova. */
+function optionList(options, initial, onPick, links){
+  let selected = initial;
   const opts = el('div',{class:'options'});
-  q.options.forEach(([val,label]) => {
+  options.forEach(([val,label]) => {
     const b = el('button',{class:'opt'}, label);
     if(selected === val) b.classList.add('selected');
     b.onclick = () => {
       [...opts.children].forEach(c=>c.classList.remove('selected'));
       b.classList.add('selected');
       selected = val;
+      onPick(val);
+      if(links && links[val]) window.open(links[val], '_blank', 'noopener');
     };
     opts.appendChild(b);
   });
-  card.appendChild(opts);
+  return opts;
+}
+
+function renderSingle(q, onNext, prev){
+  const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
+  if(q.scenario) card.insertBefore(el('div',{class:'scenario'}, q.scenario), card.children[card.children.length-0]);
+  let selected = prev && prev.value != null ? prev.value : null;
+  card.appendChild(optionList(q.options, selected, v => { selected = v; }, q.optionLinks));
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
   nextBtn.onclick = () => onNext({value: selected});
+  card.appendChild(navRow(nextBtn));
+  return card;
+}
+
+/* Diverses preguntes en una sola pantalla. Una subpregunta pot amagar-se
+   segons el que s'hagi respost a una altra (p. ex. EA2 si a EA1 es diu «No lo sé»). */
+function renderMulti(q, onNext, prev){
+  const card = questionShell(q.code, q.varTag, q.title, q.subtitle);
+  const vals = prev && prev.value ? {...prev.value} : {};
+  const blocks = [];
+  q.parts.forEach(p => {
+    const wrap = el('div',{class:'grid-item'});
+    wrap.appendChild(el('div',{class:'grid-item-label', style:'font-weight:600; margin-bottom:12px;'}, p.title));
+    wrap.appendChild(optionList(p.options, vals[p.key] ?? null, v => { vals[p.key] = v; refresh(); }, p.optionLinks));
+    card.appendChild(wrap);
+    blocks.push({p, wrap});
+  });
+  function refresh(){
+    blocks.forEach(({p, wrap}) => {
+      const hide = p.hideIf ? p.hideIf(vals) : false;
+      wrap.style.display = hide ? 'none' : '';
+      if(hide) delete vals[p.key];
+    });
+  }
+  refresh();
+  const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
+  nextBtn.onclick = () => onNext({value: {...vals}});
   card.appendChild(navRow(nextBtn));
   return card;
 }
@@ -533,6 +567,13 @@ function renderNumber(q, onNext, prev){
     const n = Number(input.value);
     if(Number.isNaN(n) || (q.min != null && n < q.min) || (q.max != null && n > q.max)){
       err.textContent = `Introdueix un valor entre ${q.min} i ${q.max}, o deixa-ho en blanc.`;
+      input.focus();
+      return;
+    }
+    /* Límit que depèn d'una resposta anterior (p. ex. menors ≤ membres de la llar − 1) */
+    const dyn = q.dynMax ? q.dynMax(S.answers) : null;
+    if(dyn != null && n > dyn){
+      err.textContent = q.dynMaxMsg ? q.dynMaxMsg(dyn) : `No pot ser més de ${dyn}.`;
       input.focus();
       return;
     }
@@ -672,34 +713,14 @@ function renderConjointTask(q, onNext, prev){
   }
 
   const pv = (prev && prev.value) || {};
-  let choice = pv.choice ?? null, rateA = pv.rateA ?? null, rateB = pv.rateB ?? null;
-  const opts = el('div',{class:'options'});
-  [['A', q.optionALabel||'Medida A'], ['B', q.optionBLabel||'Medida B']].forEach(([val,label]) => {
-    const b = el('button',{class:'opt'}, label);
-    if(choice === val) b.classList.add('selected');
-    b.onclick = () => { [...opts.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); choice = val; };
-    opts.appendChild(b);
-  });
+  let choice = pv.choice ?? null;
   card.appendChild(el('div',{class:'grid-item-label'},'¿Cuál preferirías?'));
-  card.appendChild(opts);
-
-  const rateBlockA = el('div',{class:'rate-block'});
-  rateBlockA.appendChild(el('div',{class:'rate-label'}, `Valoración ${q.optionALabel||'Medida A'} (0 = totalmente en contra, 10 = totalmente a favor)`));
-  const rowA = el('div',{class:'mini-scale'});
-  rowA.style.display='grid'; rowA.style.gridTemplateColumns='repeat(6, 1fr)'; rowA.style.rowGap='4px';
-  for(let i=0;i<=10;i++){ const b=el('button',{class:'mini-btn'},String(i)); if(rateA===i) b.classList.add('selected'); b.onclick=()=>{[...rowA.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); rateA=i;}; rowA.appendChild(b);}
-  rateBlockA.appendChild(rowA);
-  const rateBlockB = el('div',{class:'rate-block', style:'margin-top:16px;'});
-  rateBlockB.appendChild(el('div',{class:'rate-label'}, `Valoración ${q.optionBLabel||'Medida B'}`));
-  const rowB = el('div',{class:'mini-scale'});
-  rowB.style.display='grid'; rowB.style.gridTemplateColumns='repeat(6, 1fr)'; rowB.style.rowGap='4px';
-  for(let i=0;i<=10;i++){ const b=el('button',{class:'mini-btn'},String(i)); if(rateB===i) b.classList.add('selected'); b.onclick=()=>{[...rowB.children].forEach(c=>c.classList.remove('selected')); b.classList.add('selected'); rateB=i;}; rowB.appendChild(b);}
-  rateBlockB.appendChild(rowB);
-  card.appendChild(rateBlockA);
-  card.appendChild(rateBlockB);
+  card.appendChild(optionList(
+    [['A', q.optionALabel||'Medida A'], ['B', q.optionBLabel||'Medida B']],
+    choice, v => { choice = v; }));
 
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
-  nextBtn.onclick = () => onNext({value:{choice, rateA, rateB}});
+  nextBtn.onclick = () => onNext({value:{choice}});
   card.appendChild(navRow(nextBtn));
   return card;
 }
@@ -897,11 +918,16 @@ function buildFlow(){
   push({block:'EXP-A', code:'EA-intro', type:'info',
     intro:'Por favor, lee con atención el siguiente texto sobre fiscalidad energética y responde a las preguntas que se plantean a continuación.',
     scenario: sharedA + (condTextsA[condA] ? '\n\n' + condTextsA[condA] : '')});
-  push({block:'EXP-A', code:'EA1', varTag:'[reform_support]', type:'single', title:'Pensando en la reforma que acabas de leer, ¿estarías a favor o en contra de que se aplicara?',
-    options:[['1','Totalmente a favor'],['2','Más bien a favor'],['3','Más bien en contra'],['4','Totalmente en contra'],['98','No lo sé / No tengo opinión']]});
-  push({block:'EXP-A', code:'EA2', varTag:'[reform_confidence]', type:'single', title:'¿Hasta qué punto estás seguro/a de la respuesta que acabas de dar?',
-    options:[['1','Nada seguro/a'],['2','Poco seguro/a'],['3','Bastante seguro/a'],['4','Muy seguro/a']],
-    skipIf: a => a['EA1'] && a['EA1'].value==='98'});
+  /* EA1 i EA2 comparteixen pantalla: la segona s'amaga si a la primera es diu «No lo sé». */
+  push({block:'EXP-A', code:'EA1', type:'multi', parts:[
+    {key:'support', varTag:'[reform_support]',
+      title:'Pensando en la reforma que acabas de leer, ¿estarías a favor o en contra de que se aplicara?',
+      options:[['1','Totalmente a favor'],['2','Más bien a favor'],['3','Más bien en contra'],['4','Totalmente en contra'],['98','No lo sé / No tengo opinión']]},
+    {key:'confidence', varTag:'[reform_confidence]',
+      title:'¿Hasta qué punto estás seguro/a de la respuesta que acabas de dar?',
+      options:[['1','Nada seguro/a'],['2','Poco seguro/a'],['3','Bastante seguro/a'],['4','Muy seguro/a']],
+      hideIf: v => v.support === '98'}
+  ]});
   if(condA!==1){
     push({block:'EXP-A', code:'EA3', varTag:'[perceived_credibility]', type:'single', title:'¿Qué probabilidad crees que hay de que la ayuda económica descrita llegara realmente a los hogares tal y como se ha explicado?',
       options:[['1','Muy poco probable'],['2','Poco probable'],['3','Ni probable ni improbable'],['4','Bastante probable'],['5','Muy probable']]});
@@ -923,7 +949,7 @@ function buildFlow(){
     minLabel:'Totalmente en desacuerdo', maxLabel:'Totalmente de acuerdo',
     items:[['1','Por norma general, el Gobierno es ineficaz y poco honesto'],['2','Los partidos políticos normalmente ignoran a personas como yo'],['3','La mayoría de los políticos anteponen su propio interés al del país']]});
   push({block:'EXP-B', code:'EB2', type:'info', title:'Reforesta',
-    scenario:'Reforesta es una organización española sin ánimo de lucro, creada en 1991 y declarada de Utilidad Pública, dedicada a la conservación y recuperación de los bosques y a la lucha contra la desertificación. Su trabajo busca contribuir a la mitigación del cambio climático y a la adaptación de los territorios más afectados por sus efectos, mediante la reforestación, la restauración de ecosistemas y la educación ambiental.'});
+    scenario:'**Reforesta** es una organización española sin ánimo de lucro, creada en 1991 y declarada de Utilidad Pública, dedicada a la **conservación y recuperación de los bosques y a la lucha contra la desertificación**. Su trabajo busca contribuir a la **mitigación del cambio climático** y a la adaptación de los territorios más afectados por sus efectos, mediante la **reforestación**, la **restauración de ecosistemas** y la **educación ambiental**.'});
   if(condB!==1){
     push({block:'EXP-B', code:'EB3', type:'info', title: condB===2 ? 'Cartel · Nudge (sin señal gubernamental)' : 'Cartel · Nudge (con señal gubernamental)',
       scenario: condB===2
@@ -933,8 +959,8 @@ function buildFlow(){
   push({block:'EXP-B', code:'EB4', varTag:'[donation_willingness]', type:'scale', title:'Después de conocer el trabajo de Reforesta, ¿en qué medida estarías dispuesto/a a colaborar económicamente con esta organización?',
     minLabel:'Nada dispuesto/a', maxLabel:'Totalmente dispuesto/a'});
   push({block:'EXP-B', code:'EB5', varTag:'[donation_click]', type:'single', title:'Si lo deseas, puedes obtener más información y realizar tu aportación en la web de Reforesta.',
-    subtitle:'(Se registra si la persona clica el enlace o no; no es necesario para continuar.)',
-    options:[['1','Clicar el enlace (se abriría en una ventana nueva)'],['2','No clicar, continuar con la encuesta']]});
+    options:[['1','Obtener más información y realizar tu aportación. Se abre en una nueva ventana. La encuesta no se cierra pero deberás volver a esta página para continuar'],['2','No clicar, continuar con la encuesta']],
+    optionLinks:{'1':'https://reforesta.es/colabora-dona/'}});
   if(condB!==1){
     push({block:'EXP-B', code:'EB6', varTag:'[poster_source]', type:'single', title:'¿Quién crees que ha elaborado el cartel que has visto antes?',
       options:[['1','El Gobierno de España'],['2','El equipo de investigación de la universidad'],['3','Una organización ecologista'],['4','Otra organización'],['98','No lo sé']]});
@@ -976,21 +1002,21 @@ function buildFlow(){
   /* ---------- EXPERIMENTO D · Sistemas electorales ---------- */
   const group = S.assign.expD_group;
   function pushRulesConjoint(){
-    push({block:'EXP-D', code:'ED-rules-intro', type:'info', title:'Conjoint 1 · Reglas electorales',
+    push({block:'EXP-D', code:'ED-rules-intro', type:'info',
       scenario:'Te mostraremos sistemas electorales hipotéticos, definidos por sus reglas, y tendrás que elegir cuál prefieres.\n\nComo referencia: hoy las circunscripciones son las provincias, cada provincia tiene un mínimo garantizado de escaños, y el umbral para obtener representación es del 3%.'});
     for(let t=1;t<=4;t++){
       const sysA = randomSystem(RULES_ATTRS), sysB = randomSystem(RULES_ATTRS);
-      push({block:'EXP-D', code:`ED1-rules-${t}`, varTag:'[conjoint_rules_choice / _rating_a / _rating_b]', type:'conjoint', title:'¿Cuál de estos dos sistemas electorales preferirías para España?',
+      push({block:'EXP-D', code:`ED1-rules-${t}`, varTag:`[conjoint_rules_choice_${t}]`, type:'conjoint', title:'¿Cuál de estos dos sistemas electorales preferirías para España?',
         taskNum:t, taskTotal:4, optionALabel:'Sistema electoral A', optionBLabel:'Sistema electoral B',
         rows: RULES_ATTRS.map((attr,i)=>({label:attr.name, a:sysA[i], b:sysB[i]}))});
     }
   }
   function pushConsConjoint(){
-    push({block:'EXP-D', code:'ED-cons-intro', type:'info', title:'Conjoint 2 · Consecuencias del sistema electoral',
+    push({block:'EXP-D', code:'ED-cons-intro', type:'info',
       scenario:'Te mostraremos sistemas electorales hipotéticos, definidos por sus consecuencias, y tendrás que elegir cuál prefieres.\n\nComo referencia: hoy el sistema da premio a los partidos grandes en algunos territorios, compensa a las regiones menos pobladas, dificulta la entrada de partidos pequeños, y suele exigir pactos de gobierno.'});
     for(let t=1;t<=4;t++){
       const sysA = randomSystem(CONS_ATTRS), sysB = randomSystem(CONS_ATTRS);
-      push({block:'EXP-D', code:`ED3-cons-${t}`, varTag:'[conjoint_cons_choice / _rating_a / _rating_b]', type:'conjoint', title:'¿Cuál de estos dos sistemas electorales preferirías para España?',
+      push({block:'EXP-D', code:`ED3-cons-${t}`, varTag:`[conjoint_cons_choice_${t}]`, type:'conjoint', title:'¿Cuál de estos dos sistemas electorales preferirías para España?',
         taskNum:t, taskTotal:4, optionALabel:'Sistema electoral A', optionBLabel:'Sistema electoral B',
         rows: CONS_ATTRS.map((attr,i)=>({label:attr.name, a:sysA[i], b:sysB[i]}))});
     }
@@ -1022,8 +1048,11 @@ function buildFlow(){
   push({block:'F', code:'F1', varTag:'[employment]', type:'single', title:'¿Cuál de las siguientes situaciones describe mejor tu situación actual?',
     options:[['1','Trabajando (por cuenta propia o ajena)'],['2','Jubilado/a o pensionista (trabajaba anteriormente)'],['3','Pensionista (no ha trabajado nunca)'],
       ['4','En paro (trabajaba anteriormente)'],['5','En paro (busca su primer empleo)'],['6','Estudiante'],['7','Trabajo doméstico no remunerado'],['98','Otra situación']]});
-  push({block:'F', code:'F2', varTag:'[household_members]', type:'number', min:1, max:15, placeholder:'Número', title:'¿Cuántas personas viven en tu hogar, incluyéndote a ti?'});
-  push({block:'F', code:'F3', varTag:'[household_children]', type:'number', min:0, max:10, placeholder:'Número', title:'¿Cuántas personas menores de 18 años viven en tu hogar?'});
+  push({block:'F', code:'F2', varTag:'[household_members]', type:'number', min:1, max:10, placeholder:'1–10', title:'¿Cuántas personas viven en tu hogar, incluyéndote a ti?'});
+  /* Els menors no poden ser més que els membres de la llar menys tu mateix. */
+  push({block:'F', code:'F3', varTag:'[household_children]', type:'number', min:0, max:9, placeholder:'Número', title:'¿Cuántas personas menores de 18 años viven en tu hogar?',
+    dynMax: a => (a['F2'] && a['F2'].value != null && a['F2'].value !== '') ? Number(a['F2'].value) - 1 : null,
+    dynMaxMsg: n => `No puede ser más de ${n}: has indicado que en tu hogar vivís ${n+1} personas, contándote a ti.`});
   push({block:'F', code:'F4', varTag:'[household_income]', type:'single', title:'Sumando los ingresos netos mensuales de todas las personas de tu hogar, ¿cuál es aproximadamente el total?',
     options:[['1','760 € o menos'],['2','Entre 761 € y 1.160 €'],['3','Entre 1.161 € y 1.560 €'],['4','Entre 1.561 € y 1.960 €'],['5','Entre 1.961 € y 2.360 €'],
       ['6','Entre 2.361 € y 2.760 €'],['7','Entre 2.761 € y 3.260 €'],['8','Entre 3.261 € y 3.760 €'],['9','Entre 3.761 € y 4.260 €'],
@@ -1138,12 +1167,7 @@ function buildFlow(){
       basadas en la evidencia y al conocimiento científico.</p>
       <p>Si quieres más información del proyecto visita la web <a href="http://attclimate.net"
       target="_blank" rel="noopener">attclimate.net</a> o contacta con el investigador principal,
-      Marc Guinjoan (marc.guinjoanc@uab.cat).</p>
-
-      <p class="note">Nota del simulador: aquest és el text del debriefing tal com està avui. Encara parla
-      de tres experiments i el qüestionari ja en té més, o sigui que s'ha d'actualitzar abans del camp.
-      El bloc del cartell que veus a dalt és el que et tocaria pel grup que t'ha assignat l'atzar en
-      l'Experiment B.</p>`});
+      Marc Guinjoan (marc.guinjoanc@uab.cat).</p>`});
 
   const ack = cB === 1
     ? 'He leído la información anterior sobre los objetivos de esta encuesta y entiendo que mis respuestas se utilizarán únicamente con fines de investigación científica.'
@@ -1237,6 +1261,7 @@ function renderCurrent(){
     case 'info': node = renderInfo(q, onNext); break;
     case 'doc': node = renderDoc(q, onNext, prev); break;
     case 'single': node = renderSingle(q, onNext, prev); break;
+    case 'multi': node = renderMulti(q, onNext, prev); break;
     case 'scale': node = renderScale(q, onNext, prev); break;
     case 'number': node = renderNumber(q, onNext, prev); break;
     case 'rank': node = renderRank(q, onNext, prev); break;
@@ -1258,12 +1283,16 @@ function renderCurrent(){
 function buildFlat(){
   const flat = {};
   FLOW.forEach(q => {
-    const k = q.varKey;
     const a = S.answers[q.code];
-    let v = a ? a.value : null;
-    if(v !== null && typeof v === 'object') v = JSON.stringify(v);
-    flat[k] = v === undefined ? null : v;
-    flat[k + '_comment'] = S.comments[k] || '';
+    if(q.parts){
+      const v = (a && a.value) || {};
+      q.parts.forEach(p => { flat[p.varKey] = v[p.key] == null ? null : v[p.key]; });
+    } else {
+      let v = a ? a.value : null;
+      if(v !== null && typeof v === 'object') v = JSON.stringify(v);
+      flat[q.varKey] = v === undefined ? null : v;
+    }
+    flat[q.varKey + '_comment'] = S.comments[q.varKey] || '';
   });
   return flat;
 }
