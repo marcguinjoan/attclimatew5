@@ -713,14 +713,30 @@ function renderConjointTask(q, onNext, prev){
   }
 
   const pv = (prev && prev.value) || {};
-  let choice = pv.choice ?? null;
+  let choice = pv.choice ?? null, rateA = pv.rateA ?? null, rateB = pv.rateB ?? null;
   card.appendChild(el('div',{class:'grid-item-label'},'¿Cuál preferirías?'));
   card.appendChild(optionList(
     [['A', q.optionALabel||'Medida A'], ['B', q.optionBLabel||'Medida B']],
     choice, v => { choice = v; }));
 
+  /* Només el conjoint de polítiques (Experiment C) demana valorar cada opció.
+     Al conjoint de sistemes electorals només hi ha l'elecció forçada. */
+  if(q.withRating){
+    card.appendChild(el('div',{class:'grid-item-label', style:'margin-top:22px;'},
+      'Y con independencia de cuál hayas elegido, ¿en qué medida estás a favor o en contra de cada una de ellas?'));
+    [[q.optionALabel||'Medida A', v => { rateA = v; }, rateA],
+     [q.optionBLabel||'Medida B', v => { rateB = v; }, rateB]].forEach(([label, set, init]) => {
+      const gi = el('div',{class:'grid-item'});
+      gi.appendChild(el('div',{class:'grid-item-label'}, label));
+      gi.appendChild(buildSlider(0, 10, init, set));
+      gi.appendChild(el('div',{class:'scale-labels'},
+        el('span',{},'0 = Totalmente en contra'), el('span',{},'10 = Totalmente a favor')));
+      card.appendChild(gi);
+    });
+  }
+
   const nextBtn = el('button',{class:'btn btn-primary'}, 'Següent');
-  nextBtn.onclick = () => onNext({value:{choice}});
+  nextBtn.onclick = () => onNext(q.withRating ? {value:{choice, rateA, rateB}} : {value:{choice}});
   card.appendChild(navRow(nextBtn));
   return card;
 }
@@ -804,7 +820,7 @@ function buildFlow(){
   /* ---------- BLOC A ---------- */
   push({block:'A', code:'A1', varTag:'[gender]', type:'single', title:'¿Con qué género te identificas?',
     options:[['1','Hombre'],['2','Mujer'],['3','No binario / Otro']]});
-  push({block:'A', code:'A2', varTag:'[age]', type:'number', title:'¿Cuántos años tienes?', min:16, max:99, placeholder:'16–99'});
+  push({block:'A', code:'A2', varTag:'[age]', type:'number', title:'¿Cuántos años tienes?', min:18, max:99, placeholder:'18–99'});
   push({block:'A', code:'A3', varTag:'[nationality]', type:'single', title:'¿Podrías decirme si tienes...?',
     options:[['1','Nacionalidad española'],['2','Nacionalidad española y otra nacionalidad'],['3','Otra nacionalidad']]});
   push({block:'A', code:'A4', varTag:'[education]', type:'single', title:'¿Cuál es el nivel de estudios más alto que has completado?',
@@ -978,7 +994,7 @@ function buildFlow(){
   for(let t=1;t<=5;t++){
     const pa = randomCjProfile(), pb = randomCjProfile();
     push({block:'EXP-C', code:`EC${t}`, varTag:'[cjpol_choice / cjpol_rate_a / cjpol_rate_b]', type:'conjoint', title:'¿Cuál de estas dos medidas preferirías que se aplicara en España?',
-      taskNum:t, taskTotal:5, singleText:true, optionALabel:'Medida A', optionBLabel:'Medida B',
+      taskNum:t, taskTotal:5, singleText:true, withRating:true, optionALabel:'Medida A', optionBLabel:'Medida B',
       textA: pa.text, textB: pb.text});
   }
 
